@@ -9,28 +9,60 @@ namespace MentalHealthJournal.Services
     public class SpeechToTextService: ISpeechToTextService
     {
         private readonly ILogger<SpeechToTextService> _logger;
-        private readonly string _endpoint;
         private readonly string _speechKey;
         private readonly string _region;
 
         public SpeechToTextService(ILogger<SpeechToTextService> logger, IConfiguration configuration)
         {
             _logger = logger;
-            _endpoint = configuration["AzureCognitiveServices:Endpoint"];
-            _speechKey = configuration["AzureCognitiveServices:SpeechKey"];
-            _region = configuration["AzureCognitiveServices:Region"];
+            _speechKey = configuration["AzureCognitiveServices:Key"] ?? throw new ArgumentNullException("AzureCognitiveServices:Key");
+            _region = configuration["AzureCognitiveServices:Region"] ?? throw new ArgumentNullException("AzureCognitiveServices:Region");
         }
 
         public async Task<string> TranscribeAsync(IFormFile audioFile, CancellationToken cancellationToken = default)
         {
-            var config = SpeechConfig.FromEndpoint(new Uri(_endpoint), _speechKey);
+            try
+            {
+                var config = SpeechConfig.FromSubscription(_speechKey, _region);
+                config.SpeechRecognitionLanguage = "en-US";
 
-            using var stream = audioFile.OpenReadStream();
-            using var audioInput = AudioConfig.FromStreamInput(new BinaryAudioStreamReader(stream));
-            using var recognizer = new SpeechRecognizer(config, audioInput);
+                using var stream = audioFile.OpenReadStream();
+                using var audioInput = AudioConfig.FromStreamInput(new BinaryAudioStreamReader(stream));
+                using var recognizer = new SpeechRecognizer(config, audioInput);
 
-            var result = await recognizer.RecognizeOnceAsync();
-            return result.Reason == ResultReason.RecognizedSpeech ? result.Text : "";
+                _logger.LogInformation("Starting speech recognition for audio file: {FileName}", audioFile.FileName);
+
+                var result = await recognizer.RecognizeOnceAsync();
+                
+                if (result.Reason == ResultReason.RecognizedSpeech)
+                {
+                    _logger.LogInformation("Speech recognition successful. Transcribed text length: {Length}", result.Text.Length);
+                    return result.Text;
+                }
+                else if (result.Reason == ResultReason.NoMatch)
+                {
+                    _logger.LogWarning("No speech could be recognized from audio file: {FileName}", audioFile.FileName);
+                    return string.Empty;
+                }
+                else if (result.Reason == ResultReason.Canceled)
+                {
+                    var cancellation = CancellationDetails.FromResult(result);
+                    _logger.LogError("Speech recognition was canceled. Reason: {Reason}, Details: {ErrorDetails}", 
+                        cancellation.Reason, cancellation.ErrorDetails);
+                    
+                    if (cancellation.Reason == CancellationReason.Error)
+                    {
+                        throw new InvalidOperationException($"Speech recognition failed: {cancellation.ErrorDetails}");
+                    }
+                }
+                
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during speech recognition for file: {FileName}", audioFile.FileName);
+                throw;
+            }
         }
 
         private class BinaryAudioStreamReader : PullAudioInputStreamCallback

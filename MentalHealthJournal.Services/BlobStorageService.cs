@@ -15,24 +15,46 @@ namespace MentalHealthJournal.Services
         {
             _logger = logger;
             _blobServiceClient = blobServiceClient;
-            _audioContainerName = configuration["AzureBlobStorage:ContainerName"];
+            _audioContainerName = configuration["AzureBlobStorage:ContainerName"] ?? throw new ArgumentNullException("AzureBlobStorage:ContainerName");
         }
 
 
         public async Task<string> UploadAudioAsync(IFormFile audioFile, string userId, CancellationToken cancellationToken = default)
         {
-            string blobName = $"{userId}/{Guid.NewGuid()}{Path.GetExtension(audioFile.FileName)}";
-            _logger.LogInformation("Uploading audio file to blob storage: {BlobName}", blobName);
-            
-            BlobContainerClient _containerClient = _blobServiceClient.GetBlobContainerClient(_audioContainerName);
-            await _containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            try
+            {
+                if (audioFile == null || audioFile.Length == 0)
+                {
+                    throw new ArgumentException("Audio file is null or empty");
+                }
 
-            BlobClient blobClient = _containerClient.GetBlobClient(blobName);
+                string blobName = $"{userId}/{Guid.NewGuid()}{Path.GetExtension(audioFile.FileName)}";
+                _logger.LogInformation("Uploading audio file to blob storage: {BlobName}", blobName);
+                
+                BlobContainerClient containerClient = _blobServiceClient.GetBlobContainerClient(_audioContainerName);
+                await containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
 
-            using var stream = audioFile.OpenReadStream();
-            await blobClient.UploadAsync(stream, overwrite: true, cancellationToken: cancellationToken);
+                BlobClient blobClient = containerClient.GetBlobClient(blobName);
 
-            return blobClient.Uri.ToString();
+                using var stream = audioFile.OpenReadStream();
+                var uploadOptions = new Azure.Storage.Blobs.Models.BlobUploadOptions
+                {
+                    HttpHeaders = new Azure.Storage.Blobs.Models.BlobHttpHeaders
+                    {
+                        ContentType = audioFile.ContentType
+                    }
+                };
+
+                await blobClient.UploadAsync(stream, uploadOptions, cancellationToken: cancellationToken);
+
+                _logger.LogInformation("Successfully uploaded audio file to blob storage: {BlobUrl}", blobClient.Uri);
+                return blobClient.Uri.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error uploading audio file to blob storage for user: {UserId}", userId);
+                throw;
+            }
         }
 
     }

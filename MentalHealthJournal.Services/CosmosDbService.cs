@@ -10,21 +10,21 @@ namespace MentalHealthJournal.Services
         private readonly ILogger<CosmosDbService> _logger;
         private readonly CosmosClient _cosmosClient;
         private readonly AppSettings _appSettings;
-        private readonly string _journalEntryContainer;
+        private readonly Container _container;
 
         public CosmosDbService(ILogger<CosmosDbService> logger, CosmosClient cosmosClient, IOptions<AppSettings> options)
         {
             _logger = logger;
             _cosmosClient = cosmosClient;
             _appSettings = options.Value;
+            _container = _cosmosClient.GetContainer(_appSettings.CosmosDb.DatabaseName, _appSettings.CosmosDb.JournalEntryContainer);
         }
 
         public async Task SaveJournalEntryAsync(JournalEntry journalEntry, CancellationToken cancellationToken = default)
         {
             try
             {
-                var container = _cosmosClient.GetContainer("MentalHealthJournal", "JournalEntries");
-                await container.CreateItemAsync(journalEntry, new PartitionKey(journalEntry.UserId), cancellationToken: cancellationToken);
+                await _container.CreateItemAsync(journalEntry, new PartitionKey(journalEntry.UserId), cancellationToken: cancellationToken);
                 _logger.LogInformation("Journal entry saved successfully for user {UserId}", journalEntry.UserId);
             }
             catch (Exception ex)
@@ -36,23 +36,32 @@ namespace MentalHealthJournal.Services
 
         public async Task<List<JournalEntry>> GetEntriesForUserAsync(string userId, CancellationToken cancellationToken = default)
         {
-            QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.userId = @userId")
-                .WithParameter("@userId", userId);
-
-            var results = new List<JournalEntry>();
-
-            var iterator = _container.GetItemQueryIterator<JournalEntry>(query, requestOptions: new QueryRequestOptions
+            try
             {
-                PartitionKey = new PartitionKey(userId)
-            });
+                QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.userId = @userId ORDER BY c.timestamp DESC")
+                    .WithParameter("@userId", userId);
 
-            while (iterator.HasMoreResults)
-            {
-                var response = await iterator.ReadNextAsync();
-                results.AddRange(response);
+                var results = new List<JournalEntry>();
+
+                var iterator = _container.GetItemQueryIterator<JournalEntry>(query, requestOptions: new QueryRequestOptions
+                {
+                    PartitionKey = new PartitionKey(userId)
+                });
+
+                while (iterator.HasMoreResults)
+                {
+                    var response = await iterator.ReadNextAsync(cancellationToken);
+                    results.AddRange(response);
+                }
+
+                _logger.LogInformation("Retrieved {Count} journal entries for user {UserId}", results.Count, userId);
+                return results;
             }
-
-            return results;
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving journal entries for user {UserId}", userId);
+                throw;
+            }
         }
     }
 }

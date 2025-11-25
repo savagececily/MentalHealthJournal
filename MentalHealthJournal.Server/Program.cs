@@ -1,5 +1,6 @@
 
 using MentalHealthJournal.Services;
+using MentalHealthJournal.Models;
 using Azure;
 using Azure.Core;
 using Microsoft.Extensions.Azure;
@@ -8,6 +9,7 @@ using Azure.AI.TextAnalytics;
 using OpenAI;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Azure.Cosmos;
 
 namespace MentalHealthJournal.Server
 {
@@ -23,27 +25,42 @@ namespace MentalHealthJournal.Server
 
             builder.Configuration.AddAzureAppConfiguration(options =>
             {
-                Uri configurationUri = new Uri(config["AzureAppConfiguration"]);
-                options.Connect(configurationUri, defaultCredential);
+                var configurationUri = config["AzureAppConfiguration"] ?? throw new InvalidOperationException("AzureAppConfiguration is not configured");
+                options.Connect(new Uri(configurationUri), defaultCredential);
             });
 
             // === Azure OpenAI ===
             builder.Services.AddSingleton(_ =>
             {
-                var endpoint = new Uri(config["AzureOpenAI:Endpoint"]);
-                var key = new AzureKeyCredential(config["AzureOpenAI:Key"]);
+                var endpointString = config["AzureOpenAI:Endpoint"] ?? throw new InvalidOperationException("AzureOpenAI:Endpoint is not configured");
+                var keyString = config["AzureOpenAI:Key"] ?? throw new InvalidOperationException("AzureOpenAI:Key is not configured");
+                
+                var endpoint = new Uri(endpointString);
+                var key = new AzureKeyCredential(keyString);
                 return new AzureOpenAIClient(endpoint, key);
             });
 
             builder.Services.AddAzureClients(clients =>
             {
-                clients.AddBlobServiceClient(
-                    config["AzureBlobStorage:ConnectionString"])
+                var blobConnectionString = config["AzureBlobStorage:ConnectionString"] ?? throw new InvalidOperationException("AzureBlobStorage:ConnectionString is not configured");
+                clients.AddBlobServiceClient(blobConnectionString)
                     .WithCredential(defaultCredential);
 
-                clients.AddTextAnalyticsClient(
-                    new Uri(config["AzureCognitiveServices:Endpoint"]), new AzureKeyCredential(config["AzureCognitiveServices:Key"]));
+                var cognitiveEndpoint = config["AzureCognitiveServices:Endpoint"] ?? throw new InvalidOperationException("AzureCognitiveServices:Endpoint is not configured");
+                var cognitiveKey = config["AzureCognitiveServices:Key"] ?? throw new InvalidOperationException("AzureCognitiveServices:Key is not configured");
+                clients.AddTextAnalyticsClient(new Uri(cognitiveEndpoint), new AzureKeyCredential(cognitiveKey));
             });
+
+            // === Cosmos DB ===
+            builder.Services.AddSingleton<CosmosClient>(serviceProvider =>
+            {
+                var endpoint = config["CosmosDb:Endpoint"] ?? throw new InvalidOperationException("CosmosDb:Endpoint is not configured");
+                var key = config["CosmosDb:Key"] ?? throw new InvalidOperationException("CosmosDb:Key is not configured");
+                return new CosmosClient(endpoint, key);
+            });
+
+            // === Configuration ===
+            builder.Services.Configure<AppSettings>(config);
 
             // Add services to the container.
             builder.Services.AddScoped<IJournalAnalysisService, JournalAnalysisService>();
