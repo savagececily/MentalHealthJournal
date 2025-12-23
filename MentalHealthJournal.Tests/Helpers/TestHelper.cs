@@ -12,7 +12,7 @@ namespace MentalHealthJournal.Tests.Helpers
             return new JournalEntry
             {
                 Id = id ?? Guid.NewGuid().ToString(),
-                UserId = userId,
+                userId = userId,
                 Timestamp = DateTime.UtcNow,
                 Text = "This is a sample journal entry for testing purposes.",
                 IsVoiceEntry = false,

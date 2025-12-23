@@ -7,6 +7,7 @@ using Azure;
 using System.ClientModel;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace MentalHealthJournal.Services
 {
@@ -20,12 +21,12 @@ namespace MentalHealthJournal.Services
         public JournalAnalysisService(ILogger<JournalAnalysisService> logger,
             TextAnalyticsClient textClient,
             AzureOpenAIClient openAIClient,
-            IConfiguration configuration)
+            IOptions<AppSettings> configuration)
         {
             _logger = logger;
             _textClient = textClient;
             _openAIClient = openAIClient;
-            _openAIDeployment = configuration["AzureOpenAI:DeploymentName"] ?? throw new ArgumentNullException("AzureOpenAI:DeploymentName");
+            _openAIDeployment = configuration.Value.AzureOpenAI.DeploymentName ?? throw new ArgumentNullException("AzureOpenAI:DeploymentName");
         }
 
         public async Task<JournalAnalysisResult> AnalyzeAsync(string text, CancellationToken cancellationToken = default)

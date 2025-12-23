@@ -168,7 +168,7 @@ namespace MentalHealthJournal.Tests.Services
             return new JournalEntry
             {
                 Id = id ?? "test-id",
-                UserId = "user123",
+                userId = "user123",
                 Timestamp = DateTime.UtcNow,
                 Text = "Test journal entry",
                 IsVoiceEntry = false,

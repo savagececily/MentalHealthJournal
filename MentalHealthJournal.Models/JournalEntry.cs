@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿
 namespace MentalHealthJournal.Models
 {
     public class JournalEntry
     {
-        public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string UserId { get; set; } = string.Empty;
+        public string id { get; set; } = Guid.NewGuid().ToString();
+        public string userId { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
         public string? Text { get; set; } 
         public bool IsVoiceEntry { get; set; }

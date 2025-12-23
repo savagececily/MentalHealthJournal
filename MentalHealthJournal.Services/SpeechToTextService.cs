@@ -3,6 +3,8 @@ using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using MentalHealthJournal.Models;
 
 namespace MentalHealthJournal.Services
 {
@@ -12,11 +14,11 @@ namespace MentalHealthJournal.Services
         private readonly string _speechKey;
         private readonly string _region;
 
-        public SpeechToTextService(ILogger<SpeechToTextService> logger, IConfiguration configuration)
+        public SpeechToTextService(ILogger<SpeechToTextService> logger, IOptions<AppSettings> configuration)
         {
             _logger = logger;
-            _speechKey = configuration["AzureCognitiveServices:Key"] ?? throw new ArgumentNullException("AzureCognitiveServices:Key");
-            _region = configuration["AzureCognitiveServices:Region"] ?? throw new ArgumentNullException("AzureCognitiveServices:Region");
+            _speechKey = configuration.Value.AzureCognitiveServices.Key ?? throw new ArgumentNullException("AzureCognitiveServices:Key");
+            _region = configuration.Value.AzureCognitiveServices.Region ?? throw new ArgumentNullException("AzureCognitiveServices:Region");
         }
 
         public async Task<string> TranscribeAsync(IFormFile audioFile, CancellationToken cancellationToken = default)

@@ -16,22 +16,28 @@ const certificateName = "mentalhealthjournal.client";
 const certFilePath = path.join(baseFolder, `${certificateName}.pem`);
 const keyFilePath = path.join(baseFolder, `${certificateName}.key`);
 
-if (!fs.existsSync(baseFolder)) {
-    fs.mkdirSync(baseFolder, { recursive: true });
-}
-
+let httpsEnabled = false;
 if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
-    if (0 !== child_process.spawnSync('dotnet', [
-        'dev-certs',
-        'https',
-        '--export-path',
-        certFilePath,
-        '--format',
-        'Pem',
-        '--no-password',
-    ], { stdio: 'inherit', }).status) {
-        throw new Error("Could not create certificate.");
+    try {
+        if (!fs.existsSync(baseFolder)) {
+            fs.mkdirSync(baseFolder, { recursive: true });
+        }
+        if (0 === child_process.spawnSync('dotnet', [
+            'dev-certs',
+            'https',
+            '--export-path',
+            certFilePath,
+            '--format',
+            'Pem',
+            '--no-password',
+        ], { stdio: 'inherit', }).status) {
+            httpsEnabled = true;
+        }
+    } catch (error) {
+        console.warn('HTTPS certificate creation failed. Running in HTTP mode.');
     }
+} else {
+    httpsEnabled = true;
 }
 
 const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` :
@@ -50,12 +56,18 @@ export default defineConfig({
             '^/weatherforecast': {
                 target,
                 secure: false
+            },
+            '^/api': {
+                target,
+                secure: false
             }
         },
         port: parseInt(env.DEV_SERVER_PORT || '54551'),
-        https: {
-            key: fs.readFileSync(keyFilePath),
-            cert: fs.readFileSync(certFilePath),
-        }
+        ...(httpsEnabled ? {
+            https: {
+                key: fs.readFileSync(keyFilePath),
+                cert: fs.readFileSync(certFilePath),
+            }
+        } : {})
     }
 })

@@ -24,12 +24,13 @@ namespace MentalHealthJournal.Services
         {
             try
             {
-                await _container.CreateItemAsync(journalEntry, new PartitionKey(journalEntry.UserId), cancellationToken: cancellationToken);
-                _logger.LogInformation("Journal entry saved successfully for user {UserId}", journalEntry.UserId);
+                _logger.LogInformation("Saving journal entry for user {UserId}", journalEntry.userId);
+               await _container.CreateItemAsync(journalEntry, new PartitionKey(journalEntry.userId), cancellationToken: cancellationToken);
+                _logger.LogInformation("Journal entry saved successfully for user {UserId}", journalEntry.userId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error saving journal entry for user {UserId}", journalEntry.UserId);
+                _logger.LogError(ex, "Error saving journal entry for user {UserId}", journalEntry.userId);
                 throw;
             }
         }
@@ -38,6 +39,7 @@ namespace MentalHealthJournal.Services
         {
             try
             {
+                _logger.LogInformation("Retrieving journal entries for user {UserId}", userId);
                 QueryDefinition query = new QueryDefinition("SELECT * FROM c WHERE c.userId = @userId ORDER BY c.timestamp DESC")
                     .WithParameter("@userId", userId);
 

@@ -19,48 +19,65 @@ namespace MentalHealthJournal.Server
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            var config = builder.Configuration;
+            // Configure logging
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole();
+            builder.Logging.AddDebug();
+            builder.Logging.SetMinimumLevel(LogLevel.Information);
 
-            var defaultCredential = new DefaultAzureCredential();
+            // Add Application Insights telemetry
+            builder.Services.AddApplicationInsightsTelemetry();
 
+            var defaultCredential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+            {
+                ManagedIdentityClientId = Environment.GetEnvironmentVariable("ManagedIdentityClientId")
+            });
+
+            // Load Azure App Configuration FIRST before accessing other config values
+            var configurationUri = Environment.GetEnvironmentVariable("AzureAppConfiguration") ?? throw new InvalidOperationException("AzureAppConfiguration is not configured");
             builder.Configuration.AddAzureAppConfiguration(options =>
             {
-                var configurationUri = config["AzureAppConfiguration"] ?? throw new InvalidOperationException("AzureAppConfiguration is not configured");
                 options.Connect(new Uri(configurationUri), defaultCredential);
             });
 
-            // === Azure OpenAI ===
+            // Rebuild configuration to include App Configuration values
+            var config = builder.Configuration;
+
+            // === Azure OpenAI with Managed Identity ===
             builder.Services.AddSingleton(_ =>
             {
                 var endpointString = config["AzureOpenAI:Endpoint"] ?? throw new InvalidOperationException("AzureOpenAI:Endpoint is not configured");
-                var keyString = config["AzureOpenAI:Key"] ?? throw new InvalidOperationException("AzureOpenAI:Key is not configured");
-                
                 var endpoint = new Uri(endpointString);
-                var key = new AzureKeyCredential(keyString);
-                return new AzureOpenAIClient(endpoint, key);
+                return new AzureOpenAIClient(endpoint, defaultCredential);
             });
 
             builder.Services.AddAzureClients(clients =>
             {
-                var blobConnectionString = config["AzureBlobStorage:ConnectionString"] ?? throw new InvalidOperationException("AzureBlobStorage:ConnectionString is not configured");
-                clients.AddBlobServiceClient(blobConnectionString)
+                // Use Blob Storage with Managed Identity
+                var blobServiceUri = config["AzureBlobStorage:ServiceUri"] ?? throw new InvalidOperationException("AzureBlobStorage:ServiceUri is not configured");
+                clients.AddBlobServiceClient(new Uri(blobServiceUri))
                     .WithCredential(defaultCredential);
-
-                var cognitiveEndpoint = config["AzureCognitiveServices:Endpoint"] ?? throw new InvalidOperationException("AzureCognitiveServices:Endpoint is not configured");
-                var cognitiveKey = config["AzureCognitiveServices:Key"] ?? throw new InvalidOperationException("AzureCognitiveServices:Key is not configured");
-                clients.AddTextAnalyticsClient(new Uri(cognitiveEndpoint), new AzureKeyCredential(cognitiveKey));
             });
 
-            // === Cosmos DB ===
+            // === Text Analytics with Managed Identity ===
+            builder.Services.AddSingleton<TextAnalyticsClient>(serviceProvider =>
+            {
+                var cognitiveEndpoint = config["AzureCognitiveServices:Endpoint"] ?? throw new InvalidOperationException("AzureCognitiveServices:Endpoint is not configured");
+                return new TextAnalyticsClient(new Uri(cognitiveEndpoint), defaultCredential);
+            });
+
+            // === Cosmos DB with Managed Identity ===
             builder.Services.AddSingleton<CosmosClient>(serviceProvider =>
             {
                 var endpoint = config["CosmosDb:Endpoint"] ?? throw new InvalidOperationException("CosmosDb:Endpoint is not configured");
-                var key = config["CosmosDb:Key"] ?? throw new InvalidOperationException("CosmosDb:Key is not configured");
-                return new CosmosClient(endpoint, key);
+                return new CosmosClient(endpoint, defaultCredential);
             });
 
             // === Configuration ===
-            builder.Services.Configure<AppSettings>(config);
+            builder.Services.AddOptions<AppSettings>()
+            .Bind(builder.Configuration)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
             // Add services to the container.
             builder.Services.AddScoped<IJournalAnalysisService, JournalAnalysisService>();
@@ -74,6 +91,13 @@ namespace MentalHealthJournal.Server
             builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
+
+            var logger = app.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("======================================");
+            logger.LogInformation("Mental Health Journal Application Starting");
+            logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
+            logger.LogInformation("Application Insights Enabled: {Enabled}", !string.IsNullOrEmpty(config["APPLICATIONINSIGHTS_CONNECTION_STRING"]));
+            logger.LogInformation("======================================");
 
             app.UseDefaultFiles();
             app.UseStaticFiles();
@@ -94,6 +118,8 @@ namespace MentalHealthJournal.Server
 
             app.MapFallbackToFile("/index.html");
 
+            logger.LogInformation("Application started successfully");
+            
             app.Run();
         }
     }

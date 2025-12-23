@@ -290,7 +290,7 @@ namespace MentalHealthJournal.Tests.Controllers
             return new JournalEntry
             {
                 Id = id,
-                UserId = userId,
+                userId = userId,
                 Timestamp = DateTime.UtcNow,
                 Text = "Test journal entry",
                 IsVoiceEntry = false,

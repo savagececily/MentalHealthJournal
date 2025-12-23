@@ -1,18 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿
 namespace MentalHealthJournal.Models
 {
     public class AppSettings
     {
+        public string AzureAppConfiguration { get; set; } = string.Empty;
+        public string ManagedIdentityClientId { get; set; } = string.Empty;
         public AzureCognitiveServicesSettings AzureCognitiveServices { get; set; } = new();
         public AzureOpenAISettings AzureOpenAI { get; set; } = new();
         public AzureBlobStorageSettings AzureBlobStorage { get; set; } = new();
         public CosmosDbSettings CosmosDb { get; set; } = new();
-
     }
 
     public class AzureCognitiveServicesSettings
@@ -20,7 +16,6 @@ namespace MentalHealthJournal.Models
         public string Endpoint { get; set; } = string.Empty;
         public string Key { get; set; } = string.Empty;
         public string Region { get; set; } = string.Empty;
-
     }
 
     public class AzureOpenAISettings
@@ -33,6 +28,7 @@ namespace MentalHealthJournal.Models
     public class AzureBlobStorageSettings
     {
         public string ConnectionString { get; set; } = string.Empty;
+        public string ServiceUri { get; set; } = string.Empty;
         public string ContainerName { get; set; } = string.Empty;
     }
 

@@ -1,7 +1,9 @@
 ﻿using Azure.Storage.Blobs;
+using MentalHealthJournal.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace MentalHealthJournal.Services
 {
@@ -11,11 +13,11 @@ namespace MentalHealthJournal.Services
         private readonly BlobServiceClient _blobServiceClient;
         private readonly string _audioContainerName;
 
-        public BlobStorageService(ILogger<BlobStorageService> logger, IConfiguration configuration, BlobServiceClient blobServiceClient)
+        public BlobStorageService(ILogger<BlobStorageService> logger, IOptions<AppSettings> configuration, BlobServiceClient blobServiceClient)
         {
             _logger = logger;
             _blobServiceClient = blobServiceClient;
-            _audioContainerName = configuration["AzureBlobStorage:ContainerName"] ?? throw new ArgumentNullException("AzureBlobStorage:ContainerName");
+            _audioContainerName = configuration.Value.AzureBlobStorage.ContainerName ?? throw new ArgumentNullException("AzureBlobStorage:ContainerName");
         }
 
 
