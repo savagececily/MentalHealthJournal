@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppInsightsContext } from '@microsoft/applicationinsights-react-js';
 import About from './About';
+import { VoiceRecorder } from './components/VoiceRecorder';
 import './App.css';
 import './Tabs.css';
 
@@ -41,6 +42,8 @@ function App() {
     const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights'>('new');
     const [trends, setTrends] = useState<TrendData | null>(null);
     const [latestEntry, setLatestEntry] = useState<JournalEntry | null>(null);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [isTranscribing, setIsTranscribing] = useState(false);
 
     useEffect(() => {
         loadEntries();
@@ -109,14 +112,42 @@ function App() {
     }
 
     async function submitEntry() {
-        if (!journalText.trim()) {
-            alert('Please enter some text for your journal entry');
+        if (!journalText.trim() && !audioBlob) {
+            alert('Please enter text or record a voice entry');
             return;
         }
 
         const startTime = Date.now();
         try {
             setAnalyzing(true);
+
+            // If there's an audio blob, we need to upload it first and get transcription
+            let textToSubmit = journalText;
+            let audioBlobUrl = '';
+            let isVoiceEntry = false;
+
+            if (audioBlob) {
+                setIsTranscribing(true);
+                const formData = new FormData();
+                formData.append('userId', userId);
+                formData.append('audioFile', audioBlob, 'recording.webm');
+
+                const uploadResponse = await fetch('/api/journal/voice', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (uploadResponse.ok) {
+                    const voiceResult = await uploadResponse.json();
+                    textToSubmit = voiceResult.transcription;
+                    audioBlobUrl = voiceResult.audioBlobUrl;
+                    isVoiceEntry = true;
+                } else {
+                    throw new Error('Failed to process voice recording');
+                }
+                setIsTranscribing(false);
+            }
+
             const response = await fetch('/api/journal/analyze', {
                 method: 'POST',
                 headers: {
@@ -124,7 +155,9 @@ function App() {
                 },
                 body: JSON.stringify({
                     userId: userId,
-                    text: journalText,
+                    text: textToSubmit,
+                    isVoiceEntry,
+                    audioBlobUrl,
                 }),
             });
 
@@ -133,6 +166,7 @@ function App() {
                 setEntries([newEntry, ...entries]);
                 setLatestEntry(newEntry);
                 setJournalText('');
+                setAudioBlob(null);
                 
                 const duration = Date.now() - startTime;
                 appInsights.trackEvent({ 
@@ -140,8 +174,9 @@ function App() {
                     properties: { 
                         sentiment: newEntry.sentiment,
                         sentimentScore: newEntry.sentimentScore,
-                        textLength: journalText.length,
-                        duration
+                        textLength: textToSubmit.length,
+                        duration,
+                        isVoiceEntry
                     } 
                 });
             } else {
@@ -155,6 +190,7 @@ function App() {
             appInsights.trackException({ exception: error as Error, properties: { action: 'submitEntry' } });
         } finally {
             setAnalyzing(false);
+            setIsTranscribing(false);
         }
     }
 
@@ -247,18 +283,49 @@ function App() {
                                 value={journalText}
                                 onChange={(e) => setJournalText(e.target.value)}
                                 rows={10}
-                                disabled={analyzing}
+                                disabled={analyzing || isTranscribing}
                             />
+                            
+                            <div className="input-divider">
+                                <span>OR</span>
+                            </div>
+
+                            <VoiceRecorder 
+                                onRecordingComplete={(blob) => {
+                                    setAudioBlob(blob);
+                                    setJournalText(''); // Clear text when voice is recorded
+                                }}
+                                disabled={analyzing || isTranscribing || journalText.trim().length > 0}
+                            />
+
+                            {audioBlob && (
+                                <div className="audio-preview">
+                                    <p>🎤 Voice recording ready</p>
+                                    <audio controls src={URL.createObjectURL(audioBlob)} />
+                                    <button 
+                                        className="clear-audio-button"
+                                        onClick={() => setAudioBlob(null)}
+                                    >
+                                        Clear Recording
+                                    </button>
+                                </div>
+                            )}
+
                             <button 
                                 className="submit-button" 
                                 onClick={submitEntry}
-                                disabled={analyzing || !journalText.trim()}
+                                disabled={analyzing || isTranscribing || (!journalText.trim() && !audioBlob)}
                             >
-                                {analyzing ? '🤖 Analyzing with AI...' : '✨ Save & Analyze Entry'}
+                                {isTranscribing ? '🎤 Transcribing audio...' : 
+                                 analyzing ? '🤖 Analyzing with AI...' : 
+                                 '✨ Save & Analyze Entry'}
                             </button>
-                            {analyzing && (
+                            {(analyzing || isTranscribing) && (
                                 <div className="analyzing-info">
-                                    <p>🤖 AI is analyzing your entry for sentiment, key phrases, and generating personalized insights...</p>
+                                    <p>
+                                        {isTranscribing ? '🎤 Converting your voice to text...' : 
+                                         '🤖 AI is analyzing your entry for sentiment, key phrases, and generating personalized insights...'}
+                                    </p>
                                 </div>
                             )}
                         </div>

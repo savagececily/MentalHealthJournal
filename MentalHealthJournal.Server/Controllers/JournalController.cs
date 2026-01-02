@@ -85,20 +85,13 @@ namespace MentalHealthJournal.Server.Controllers
                 _logger.LogInformation("Processing journal entry for user {UserId}", request.UserId);
 
                 string entryText = request.Text ?? "";
-                string? blobUrl = null;
-                bool isVoice = false;
-
-                if (request.AudioFile != null)
-                {
-                    isVoice = true;
-                    blobUrl = await _blobService.UploadAudioAsync(request.AudioFile, request.UserId, cancellationToken);
-                    entryText = await _speechService.TranscribeAsync(request.AudioFile, cancellationToken);
-                }
+                string? blobUrl = request.AudioBlobUrl;
+                bool isVoice = request.IsVoiceEntry;
 
                 if (string.IsNullOrWhiteSpace(entryText))
                 {
-                    _logger.LogWarning("No text or audio content provided for user {UserId}", request.UserId);
-                    return BadRequest("No text or audio provided.");
+                    _logger.LogWarning("No text content provided for user {UserId}", request.UserId);
+                    return BadRequest("No text provided.");
                 }
 
                 _logger.LogInformation("Starting AI analysis for user {UserId}, text length: {Length}", request.UserId, entryText.Length);
@@ -128,6 +121,48 @@ namespace MentalHealthJournal.Server.Controllers
             {
                 _logger.LogError(ex, "Error processing journal entry for user {UserId}", request?.UserId);
                 return StatusCode(500, "An error occurred while processing the journal entry.");
+            }
+        }
+
+        [HttpPost("voice")]
+        public async Task<ActionResult<object>> ProcessVoiceEntry([FromForm] string userId, [FromForm] IFormFile audioFile, CancellationToken cancellationToken = default)
+        {
+            _logger.LogInformation("Received voice entry request for user {UserId}", userId);
+            
+            try
+            {
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    _logger.LogWarning("User ID is missing or empty");
+                    return BadRequest("User ID is required.");
+                }
+
+                if (audioFile == null || audioFile.Length == 0)
+                {
+                    _logger.LogWarning("No audio file provided");
+                    return BadRequest("Audio file is required.");
+                }
+
+                _logger.LogInformation("Processing audio file for user {UserId}, size: {Size} bytes", userId, audioFile.Length);
+
+                // Upload audio to blob storage
+                string blobUrl = await _blobService.UploadAudioAsync(audioFile, userId, cancellationToken);
+                _logger.LogInformation("Audio uploaded to blob storage: {BlobUrl}", blobUrl);
+
+                // Transcribe audio to text
+                string transcription = await _speechService.TranscribeAsync(audioFile, cancellationToken);
+                _logger.LogInformation("Audio transcribed, text length: {Length}", transcription.Length);
+
+                return Ok(new
+                {
+                    transcription = transcription,
+                    audioBlobUrl = blobUrl
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing voice entry for user {UserId}", userId);
+                return StatusCode(500, "An error occurred while processing the voice entry.");
             }
         }
 
