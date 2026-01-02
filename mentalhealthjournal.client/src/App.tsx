@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAppInsightsContext } from '@microsoft/applicationinsights-react-js';
+import About from './About';
 import './App.css';
+import './Tabs.css';
 
 interface JournalEntry {
     id: string;
@@ -35,8 +37,10 @@ function App() {
     const [userId] = useState('demo-user');
     const [loading, setLoading] = useState(false);
     const [analyzing, setAnalyzing] = useState(false);
-    const [showTrends, setShowTrends] = useState(false);
+    const [showAbout, setShowAbout] = useState(false);
+    const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights'>('new');
     const [trends, setTrends] = useState<TrendData | null>(null);
+    const [latestEntry, setLatestEntry] = useState<JournalEntry | null>(null);
 
     useEffect(() => {
         loadEntries();
@@ -127,6 +131,7 @@ function App() {
             if (response.ok) {
                 const newEntry = await response.json();
                 setEntries([newEntry, ...entries]);
+                setLatestEntry(newEntry);
                 setJournalText('');
                 
                 const duration = Date.now() - startTime;
@@ -197,64 +202,220 @@ function App() {
     return (
         <div className="app-container">
             <header className="app-header">
-                <h1>🌱 Mental Health Journal</h1>
-                <p>Track your thoughts, understand your emotions</p>
+                <div className="header-content">
+                    <div>
+                        <h1>🌱 Inside Journal</h1>
+                        <p>Track your thoughts, understand your emotions</p>
+                    </div>
+                    <button className="about-button" onClick={() => setShowAbout(true)}>
+                        About
+                    </button>
+                </div>
             </header>
 
-            <div className="content-wrapper">
-                <div className="sidebar">
-                    <div className="new-entry-section">
-                        <h2>New Journal Entry</h2>
-                        <textarea
-                            className="journal-input"
-                            placeholder="How are you feeling today? Write your thoughts here..."
-                            value={journalText}
-                            onChange={(e) => setJournalText(e.target.value)}
-                            rows={6}
-                            disabled={analyzing}
-                        />
-                        <button 
-                            className="submit-button" 
-                            onClick={submitEntry}
-                            disabled={analyzing || !journalText.trim()}
-                        >
-                            {analyzing ? 'Analyzing with AI...' : 'Save & Analyze Entry'}
-                        </button>
-                        {analyzing && (
-                            <div className="analyzing-info">
-                                <p>🤖 AI is analyzing your entry for sentiment, key phrases, and generating insights...</p>
+            <div className="tabs-container">
+                <div className="tabs">
+                    <button 
+                        className={`tab ${activeTab === 'new' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('new')}
+                    >
+                        ✏️ New Entry
+                    </button>
+                    <button 
+                        className={`tab ${activeTab === 'past' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('past')}
+                    >
+                        📚 Past Entries
+                    </button>
+                    <button 
+                        className={`tab ${activeTab === 'insights' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('insights')}
+                    >
+                        📊 Insights
+                    </button>
+                </div>
+            </div>
+
+            <div className="tab-content">
+                {activeTab === 'new' && (
+                    <div className="new-entry-tab">
+                        <div className="entry-form-section">
+                            <h2>Write Your Thoughts</h2>
+                            <textarea
+                                className="journal-input"
+                                placeholder="How are you feeling today? Write your thoughts here..."
+                                value={journalText}
+                                onChange={(e) => setJournalText(e.target.value)}
+                                rows={10}
+                                disabled={analyzing}
+                            />
+                            <button 
+                                className="submit-button" 
+                                onClick={submitEntry}
+                                disabled={analyzing || !journalText.trim()}
+                            >
+                                {analyzing ? '🤖 Analyzing with AI...' : '✨ Save & Analyze Entry'}
+                            </button>
+                            {analyzing && (
+                                <div className="analyzing-info">
+                                    <p>🤖 AI is analyzing your entry for sentiment, key phrases, and generating personalized insights...</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {latestEntry && (
+                            <div className="quick-insights-section">
+                                <h2>Quick Insights</h2>
+                                <div className="insight-card">
+                                    <div className="insight-header">
+                                        <div className="insight-date">
+                                            {new Date(latestEntry.timestamp).toLocaleDateString('en-US', {
+                                                weekday: 'long',
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </div>
+                                        <div 
+                                            className="sentiment-badge large"
+                                            style={{ backgroundColor: getSentimentColor(latestEntry.sentiment) }}
+                                        >
+                                            {getSentimentEmoji(latestEntry.sentiment)} {latestEntry.sentiment}
+                                        </div>
+                                    </div>
+
+                                    {latestEntry.summary && (
+                                        <div className="insight-item">
+                                            <div className="insight-label">📝 AI Summary</div>
+                                            <div className="insight-content">{latestEntry.summary}</div>
+                                        </div>
+                                    )}
+
+                                    {latestEntry.affirmation && (
+                                        <div className="insight-item affirmation">
+                                            <div className="insight-label">💫 Affirmation</div>
+                                            <div className="insight-content">{latestEntry.affirmation}</div>
+                                        </div>
+                                    )}
+
+                                    {latestEntry.keyPhrases && latestEntry.keyPhrases.length > 0 && (
+                                        <div className="insight-item">
+                                            <div className="insight-label">🔑 Key Themes</div>
+                                            <div className="key-phrases-grid">
+                                                {latestEntry.keyPhrases.map((phrase, index) => (
+                                                    <span key={index} className="phrase-tag">
+                                                        {phrase}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
+                )}
 
-                    {trends && entries.length > 0 && (
-                        <div className="trends-section">
-                            <div className="trends-header">
-                                <h2>📊 Your Trends</h2>
-                                <button 
-                                    className="toggle-trends"
-                                    onClick={() => setShowTrends(!showTrends)}
-                                >
-                                    {showTrends ? 'Hide' : 'Show'}
-                                </button>
+                {activeTab === 'past' && (
+                    <div className="past-entries-tab">
+                        <h2>Your Journal History</h2>
+                        {loading ? (
+                            <p className="loading-text">Loading your entries...</p>
+                        ) : entries.length === 0 ? (
+                            <div className="empty-state">
+                                <p>No journal entries yet.</p>
+                                <p>Start writing to track your mental wellness and see AI-powered insights!</p>
                             </div>
-                            
-                            {showTrends && (
-                                <>
-                                    <div className="trend-stat">
-                                        <span className="stat-label">Total Entries</span>
-                                        <span className="stat-value">{trends.totalEntries}</span>
-                                    </div>
-                                    
-                                    <div className="trend-stat">
-                                        <span className="stat-label">Recent Trend</span>
-                                        <span className="stat-value">
-                                            {getTrendEmoji(trends.recentTrend)} {trends.recentTrend}
-                                        </span>
-                                    </div>
+                        ) : (
+                            <div className="entries-list">
+                                {entries.map((entry) => (
+                                    <div key={entry.id} className="entry-card">
+                                        <div className="entry-header">
+                                            <div className="entry-date">
+                                                {new Date(entry.timestamp).toLocaleDateString('en-US', {
+                                                    weekday: 'short',
+                                                    year: 'numeric',
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </div>
+                                            <div 
+                                                className="sentiment-badge"
+                                                style={{ backgroundColor: getSentimentColor(entry.sentiment) }}
+                                                title={`Sentiment Score: ${entry.sentimentScore.toFixed(2)}`}
+                                            >
+                                                {getSentimentEmoji(entry.sentiment)} {entry.sentiment}
+                                            </div>
+                                        </div>
 
+                                        <div className="entry-text">
+                                            {entry.text}
+                                        </div>
+
+                                        {entry.summary && (
+                                            <div className="entry-summary">
+                                                <strong>📝 AI Summary:</strong> {entry.summary}
+                                            </div>
+                                        )}
+
+                                        {entry.affirmation && (
+                                            <div className="entry-affirmation">
+                                                <strong>💫 Affirmation:</strong> {entry.affirmation}
+                                            </div>
+                                        )}
+
+                                        {entry.keyPhrases && entry.keyPhrases.length > 0 && (
+                                            <div className="key-phrases">
+                                                <div className="key-phrases-label">🔑 Key Phrases:</div>
+                                                {entry.keyPhrases.map((phrase, index) => (
+                                                    <span key={index} className="phrase-tag">
+                                                        {phrase}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'insights' && (
+                    <div className="insights-tab">
+                        <h2>Detailed Insights & Trends</h2>
+                        {!trends || entries.length === 0 ? (
+                            <div className="empty-state">
+                                <p>No insights available yet.</p>
+                                <p>Create more journal entries to see your emotional trends and patterns!</p>
+                            </div>
+                        ) : (
+                            <div className="insights-grid">
+                                <div className="insight-card-large">
+                                    <h3>📊 Overall Statistics</h3>
+                                    <div className="stats-grid">
+                                        <div className="stat-box">
+                                            <div className="stat-value">{trends.totalEntries}</div>
+                                            <div className="stat-label">Total Entries</div>
+                                        </div>
+                                        <div className="stat-box">
+                                            <div className="stat-value">{trends.averageSentimentScore.toFixed(2)}</div>
+                                            <div className="stat-label">Avg Sentiment Score</div>
+                                        </div>
+                                        <div className="stat-box">
+                                            <div className="stat-value">{getTrendEmoji(trends.recentTrend)}</div>
+                                            <div className="stat-label">{trends.recentTrend}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="insight-card-large">
+                                    <h3>🎭 Sentiment Distribution</h3>
                                     <div className="sentiment-chart">
-                                        <h3>Sentiment Distribution</h3>
                                         <div className="chart-bars">
                                             {Object.entries(trends.sentimentDistribution).map(([sentiment, count]) => {
                                                 const percentage = trends.totalEntries > 0 
@@ -273,90 +434,30 @@ function App() {
                                                                     backgroundColor: getSentimentColor(sentiment)
                                                                 }}
                                                             />
-                                                            <span className="chart-count">{count}</span>
+                                                            <span className="chart-count">{count} ({percentage.toFixed(1)}%)</span>
                                                         </div>
                                                     </div>
                                                 ) : null;
                                             })}
                                         </div>
                                     </div>
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <div className="entries-section">
-                    <h2>Your Journal Entries</h2>
-                    {loading ? (
-                        <p className="loading-text">Loading your entries...</p>
-                    ) : entries.length === 0 ? (
-                        <div className="empty-state">
-                            <p>No journal entries yet.</p>
-                            <p>Start writing to track your mental wellness and see AI-powered insights!</p>
-                            <div className="features-preview">
-                                <div className="feature">✨ Sentiment Analysis</div>
-                                <div className="feature">🔑 Key Phrase Extraction</div>
-                                <div className="feature">📝 AI-Generated Summaries</div>
-                                <div className="feature">💫 Personal Affirmations</div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="entries-list">
-                            {entries.map((entry) => (
-                                <div key={entry.id} className="entry-card">
-                                    <div className="entry-header">
-                                        <div className="entry-date">
-                                            {new Date(entry.timestamp).toLocaleDateString('en-US', {
-                                                weekday: 'short',
-                                                year: 'numeric',
-                                                month: 'short',
-                                                day: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </div>
-                                        <div 
-                                            className="sentiment-badge"
-                                            style={{ backgroundColor: getSentimentColor(entry.sentiment) }}
-                                            title={`Sentiment Score: ${entry.sentimentScore.toFixed(2)}`}
-                                        >
-                                            {getSentimentEmoji(entry.sentiment)} {entry.sentiment}
-                                        </div>
-                                    </div>
-
-                                    <div className="entry-text">
-                                        {entry.text}
-                                    </div>
-
-                                    {entry.summary && (
-                                        <div className="entry-summary">
-                                            <strong>�� AI Summary:</strong> {entry.summary}
-                                        </div>
-                                    )}
-
-                                    {entry.affirmation && (
-                                        <div className="entry-affirmation">
-                                            <strong>💫 Affirmation:</strong> {entry.affirmation}
-                                        </div>
-                                    )}
-
-                                    {entry.keyPhrases && entry.keyPhrases.length > 0 && (
-                                        <div className="key-phrases">
-                                            <div className="key-phrases-label">🔑 Key Phrases:</div>
-                                            {entry.keyPhrases.map((phrase, index) => (
-                                                <span key={index} className="phrase-tag">
-                                                    {phrase}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+
+                                <div className="insight-card-large">
+                                    <h3>💡 Insights Summary</h3>
+                                    <div className="insights-summary">
+                                        <p>You've journaled <strong>{trends.totalEntries}</strong> times!</p>
+                                        <p>Your recent emotional trend is <strong>{trends.recentTrend}</strong> {getTrendEmoji(trends.recentTrend)}</p>
+                                        <p>Keep tracking your thoughts to gain deeper insights into your mental wellness journey.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
+
+            {showAbout && <About onClose={() => setShowAbout(false)} />}
         </div>
     );
 }
