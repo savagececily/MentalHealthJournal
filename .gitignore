@@ -88,6 +88,10 @@ artifacts/
 publish/
 [Pp]ublish/
 
+# Deployment artifacts
+*.zip
+*-deploy.zip
+
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 
