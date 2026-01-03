@@ -2,11 +2,15 @@
 using MentalHealthJournal.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 
 namespace MentalHealthJournal.Server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // Require authentication for all endpoints
     public class JournalController : ControllerBase
     {
         private readonly ILogger<JournalController> _logger;
@@ -31,6 +35,7 @@ namespace MentalHealthJournal.Server.Controllers
         }
 
         [HttpGet("health")]
+        [AllowAnonymous] // Allow health check without authentication
         public IActionResult Health()
         {
             _logger.LogInformation("Health check endpoint called");
@@ -38,17 +43,18 @@ namespace MentalHealthJournal.Server.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<JournalEntry>>> GetEntries([FromQuery] string userId, CancellationToken cancellationToken = default)
+        public async Task<ActionResult<List<JournalEntry>>> GetEntries(CancellationToken cancellationToken = default)
         {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
             _logger.LogInformation("GET /api/journal called with userId: {UserId}", userId);
             
             try
             {
-                if (string.IsNullOrWhiteSpace(userId))
-                {
-                    _logger.LogWarning("User ID is missing or empty in GetEntries");
-                    return BadRequest("User ID is required.");
-                }
 
                 var entries = await _cosmosService.GetEntriesForUserAsync(userId, cancellationToken);
                 
@@ -66,6 +72,12 @@ namespace MentalHealthJournal.Server.Controllers
         [HttpPost("analyze")]
         public async Task<ActionResult<JournalEntry>> AnalyzeEntry([FromBody] JournalEntryRequest request, CancellationToken cancellationToken = default)
         {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
             _logger.LogInformation("Received journal entry analysis request");
             
             try
@@ -75,14 +87,8 @@ namespace MentalHealthJournal.Server.Controllers
                     _logger.LogWarning("Request body is null");
                     return BadRequest("Request body is required.");
                 }
-
-                if (string.IsNullOrWhiteSpace(request.UserId))
-                {
-                    _logger.LogWarning("User ID is missing or empty");
-                    return BadRequest("User ID is required.");
-                }
                 
-                _logger.LogInformation("Processing journal entry for user {UserId}", request.UserId);
+                _logger.LogInformation("Processing journal entry for user {UserId}", userId);
 
                 string entryText = request.Text ?? "";
                 string? blobUrl = request.AudioBlobUrl;
@@ -90,16 +96,16 @@ namespace MentalHealthJournal.Server.Controllers
 
                 if (string.IsNullOrWhiteSpace(entryText))
                 {
-                    _logger.LogWarning("No text content provided for user {UserId}", request.UserId);
+                    _logger.LogWarning("No text content provided for user {UserId}", userId);
                     return BadRequest("No text provided.");
                 }
 
-                _logger.LogInformation("Starting AI analysis for user {UserId}, text length: {Length}", request.UserId, entryText.Length);
+                _logger.LogInformation("Starting AI analysis for user {UserId}, text length: {Length}", userId, entryText.Length);
                 JournalAnalysisResult analysis = await _analysisService.AnalyzeAsync(entryText, cancellationToken);
-                _logger.LogInformation("AI analysis completed for user {UserId}, sentiment: {Sentiment}", request.UserId, analysis.Sentiment);
+                _logger.LogInformation("AI analysis completed for user {UserId}, sentiment: {Sentiment}", userId, analysis.Sentiment);
 
                 JournalEntry journal = new();
-                journal.userId = request.UserId;
+                journal.userId = userId;
                 journal.Timestamp = request.Timestamp;
                 journal.Text = entryText;
                 journal.IsVoiceEntry = isVoice;
@@ -125,18 +131,18 @@ namespace MentalHealthJournal.Server.Controllers
         }
 
         [HttpPost("voice")]
-        public async Task<ActionResult<object>> ProcessVoiceEntry([FromForm] string userId, [FromForm] IFormFile audioFile, CancellationToken cancellationToken = default)
+        public async Task<ActionResult<object>> ProcessVoiceEntry([FromForm] IFormFile audioFile, CancellationToken cancellationToken = default)
         {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
             _logger.LogInformation("Received voice entry request for user {UserId}", userId);
             
             try
             {
-                if (string.IsNullOrWhiteSpace(userId))
-                {
-                    _logger.LogWarning("User ID is missing or empty");
-                    return BadRequest("User ID is required.");
-                }
-
                 if (audioFile == null || audioFile.Length == 0)
                 {
                     _logger.LogWarning("No audio file provided");
@@ -163,32 +169,6 @@ namespace MentalHealthJournal.Server.Controllers
             {
                 _logger.LogError(ex, "Error processing voice entry for user {UserId}", userId);
                 return StatusCode(500, "An error occurred while processing the voice entry.");
-            }
-        }
-
-        [HttpGet("entries/{userId}")]
-        public async Task<ActionResult<List<JournalEntry>>> GetUserEntries(string userId, CancellationToken cancellationToken = default)
-        {
-            _logger.LogInformation("Received request to get entries for user {UserId}", userId);
-            
-            try
-            {
-                if (string.IsNullOrWhiteSpace(userId))
-                {
-                    _logger.LogWarning("User ID is missing or empty in GetUserEntries");
-                    return BadRequest("User ID is required.");
-                }
-
-                var entries = await _cosmosService.GetEntriesForUserAsync(userId, cancellationToken);
-                
-                _logger.LogInformation("Retrieved {Count} journal entries for user {UserId}", entries.Count, userId);
-                
-                return Ok(entries);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving journal entries for user {UserId}", userId);
-                return StatusCode(500, "An error occurred while retrieving journal entries.");
             }
         }
     }

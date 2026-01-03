@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAppInsightsContext } from '@microsoft/applicationinsights-react-js';
+import { useAuth } from './contexts/AuthContext';
+import Login from './components/Login';
+import UsernameSetup from './components/UsernameSetup';
 import About from './About';
 import { VoiceRecorder } from './components/VoiceRecorder';
 import './App.css';
@@ -33,9 +36,9 @@ interface TrendData {
 
 function App() {
     const appInsights = useAppInsightsContext();
+    const { user, token, isAuthenticated, isLoading: authLoading, logout } = useAuth();
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [journalText, setJournalText] = useState('');
-    const [userId] = useState('demo-user');
     const [loading, setLoading] = useState(false);
     const [analyzing, setAnalyzing] = useState(false);
     const [showAbout, setShowAbout] = useState(false);
@@ -44,10 +47,17 @@ function App() {
     const [latestEntry, setLatestEntry] = useState<JournalEntry | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [isTranscribing, setIsTranscribing] = useState(false);
+    const [showUsernameSetup, setShowUsernameSetup] = useState(false);
 
     useEffect(() => {
-        loadEntries();
-    }, []);
+        if (isAuthenticated) {
+            loadEntries();
+            // Check if user needs to set username
+            if (!user?.username) {
+                setShowUsernameSetup(true);
+            }
+        }
+    }, [isAuthenticated]);
 
     useEffect(() => {
         if (entries.length > 0) {
@@ -56,9 +66,15 @@ function App() {
     }, [entries]);
 
     async function loadEntries() {
+        if (!token) return;
+        
         try {
             setLoading(true);
-            const response = await fetch(`/api/journal?userId=${userId}`);
+            const response = await fetch('/api/journal', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             if (response.ok) {
                 const data = await response.json();
                 setEntries(data);
@@ -129,11 +145,13 @@ function App() {
             if (audioBlob) {
                 setIsTranscribing(true);
                 const formData = new FormData();
-                formData.append('userId', userId);
                 formData.append('audioFile', audioBlob, 'recording.webm');
 
                 const uploadResponse = await fetch('/api/journal/voice', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: formData,
                 });
 
@@ -152,9 +170,9 @@ function App() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    userId: userId,
                     text: textToSubmit,
                     isVoiceEntry,
                     audioBlobUrl,
@@ -235,6 +253,18 @@ function App() {
         }
     }
 
+    if (authLoading) {
+        return (
+            <div className="app-container">
+                <div className="loading">Loading...</div>
+            </div>
+        );
+    }
+
+    if (!isAuthenticated) {
+        return <Login />;
+    }
+
     return (
         <div className="app-container">
             <header className="app-header">
@@ -243,9 +273,20 @@ function App() {
                         <h1>🌱 Inside Journal</h1>
                         <p>Track your thoughts, understand your emotions</p>
                     </div>
-                    <button className="about-button" onClick={() => setShowAbout(true)}>
-                        About
-                    </button>
+                    <div className="header-actions">
+                        <div className="user-info">
+                            {user?.profilePictureUrl && (
+                                <img src={user.profilePictureUrl} alt={user.name} className="user-avatar" />
+                            )}
+                            <span className="user-name">{user?.username || user?.name}</span>
+                        </div>
+                        <button className="about-button" onClick={() => setShowAbout(true)}>
+                            About
+                        </button>
+                        <button className="logout-button" onClick={logout}>
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -525,6 +566,7 @@ function App() {
             </div>
 
             {showAbout && <About onClose={() => setShowAbout(false)} />}
+            {showUsernameSetup && <UsernameSetup onComplete={() => setShowUsernameSetup(false)} />}
         </div>
     );
 }

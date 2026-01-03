@@ -12,6 +12,8 @@
   "dependencies": {
     "@microsoft/applicationinsights-react-js": "^19.3.8",
     "@microsoft/applicationinsights-web": "^3.3.10",
+    "@react-oauth/google": "^0.13.4",
+    "jwt-decode": "^4.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

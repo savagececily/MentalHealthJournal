@@ -10,6 +10,9 @@ using OpenAI;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Azure.Cosmos;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace MentalHealthJournal.Server
 {
@@ -20,13 +23,8 @@ namespace MentalHealthJournal.Server
             var builder = WebApplication.CreateBuilder(args);
 
             // Configure logging
-            builder.Logging.ClearProviders();
             builder.Logging.AddConsole();
             builder.Logging.AddDebug();
-            builder.Logging.SetMinimumLevel(LogLevel.Information);
-
-            // Add Application Insights telemetry
-            builder.Services.AddApplicationInsightsTelemetry();
 
             var defaultCredential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
             {
@@ -42,6 +40,26 @@ namespace MentalHealthJournal.Server
 
             // Rebuild configuration to include App Configuration values
             var config = builder.Configuration;
+
+            // Add Application Insights telemetry with explicit connection string
+            var appInsightsConnectionString = config["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+            if (!string.IsNullOrEmpty(appInsightsConnectionString))
+            {
+                builder.Services.AddApplicationInsightsTelemetry(options =>
+                {
+                    options.ConnectionString = appInsightsConnectionString;
+                });
+                builder.Logging.AddApplicationInsights(
+                    configureTelemetryConfiguration: (config) => config.ConnectionString = appInsightsConnectionString,
+                    configureApplicationInsightsLoggerOptions: (options) => { }
+                );
+            }
+            else
+            {
+                Console.WriteLine("WARNING: Application Insights connection string not found!");
+            }
+
+            builder.Services.AddLogging();
 
             // === Azure OpenAI with Managed Identity ===
             builder.Services.AddSingleton(_ =>
@@ -70,7 +88,14 @@ namespace MentalHealthJournal.Server
             builder.Services.AddSingleton<CosmosClient>(serviceProvider =>
             {
                 var endpoint = config["CosmosDb:Endpoint"] ?? throw new InvalidOperationException("CosmosDb:Endpoint is not configured");
-                return new CosmosClient(endpoint, defaultCredential);
+                var cosmosClientOptions = new CosmosClientOptions
+                {
+                    SerializerOptions = new CosmosSerializationOptions
+                    {
+                        PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+                    }
+                };
+                return new CosmosClient(endpoint, defaultCredential, cosmosClientOptions);
             });
 
             // === Configuration ===
@@ -84,6 +109,51 @@ namespace MentalHealthJournal.Server
             builder.Services.AddSingleton<ISpeechToTextService, SpeechToTextService>();
             builder.Services.AddSingleton<IBlobStorageService, BlobStorageService>();
             builder.Services.AddSingleton<ICosmosDbService, CosmosDbService>();
+            builder.Services.AddSingleton<IUserService, UserService>();
+
+            // === JWT Authentication ===
+            var jwtKey = config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured");
+            var jwtIssuer = config["Jwt:Issuer"] ?? "MentalHealthJournal";
+            var jwtAudience = config["Jwt:Audience"] ?? "MentalHealthJournalApp";
+
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtIssuer,
+                    ValidAudience = jwtAudience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+                };
+            });
+
+            builder.Services.AddAuthorization();
+
+            // Add CORS policy
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowFrontend", policy =>
+                {
+                    policy.WithOrigins(
+                        "http://localhost:54551",
+                        "http://localhost:5173",
+                        "https://localhost:54551",
+                        "https://localhost:5173",
+                        "https://mentalhealthjournal-webapp.azurewebsites.net"
+                    )
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .AllowCredentials();
+                });
+            });
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -96,7 +166,16 @@ namespace MentalHealthJournal.Server
             logger.LogInformation("======================================");
             logger.LogInformation("Mental Health Journal Application Starting");
             logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
-            logger.LogInformation("Application Insights Enabled: {Enabled}", !string.IsNullOrEmpty(config["APPLICATIONINSIGHTS_CONNECTION_STRING"]));
+            
+            var appInsightsConnString = config["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+            logger.LogInformation("Application Insights Connection String: {ConnectionString}", 
+                string.IsNullOrEmpty(appInsightsConnString) ? "NOT CONFIGURED" : $"Configured (Key: {appInsightsConnString.Substring(0, Math.Min(50, appInsightsConnString.Length))}...)");
+            
+            // Send a test telemetry event
+            if (!string.IsNullOrEmpty(appInsightsConnString))
+            {
+                logger.LogInformation("Application Insights telemetry is enabled - sending test event");
+            }
             logger.LogInformation("======================================");
 
             app.UseDefaultFiles();
@@ -111,6 +190,9 @@ namespace MentalHealthJournal.Server
 
             app.UseHttpsRedirection();
 
+            app.UseCors("AllowFrontend");
+
+            app.UseAuthentication();
             app.UseAuthorization();
 
 
