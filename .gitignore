@@ -584,4 +584,4 @@ appsettings.*.local.json
 *.pem
 secrets.json
 
-app-deploy/*s
+app-deploy/*
