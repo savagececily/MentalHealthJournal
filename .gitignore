@@ -583,3 +583,5 @@ appsettings.*.local.json
 *.key
 *.pem
 secrets.json
+
+app-deploy/*
