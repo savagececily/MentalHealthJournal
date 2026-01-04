@@ -35,13 +35,13 @@ jobs:
           cache-dependency-path: mentalhealthjournal.client/package-lock.json
 
       - name: Restore .NET dependencies
-        run: dotnet restore MentalHealthJournal.sln
+        run: dotnet restore ../../MentalHealthJournal.sln
 
       - name: Build .NET solution
-        run: dotnet build MentalHealthJournal.sln --configuration Release --no-restore
+        run: dotnet build ../../MentalHealthJournal.sln --configuration Release --no-restore
 
       - name: Run .NET tests
-        run: dotnet test MentalHealthJournal.sln --no-build --verbosity normal --configuration Release
+        run: dotnet test ../../MentalHealthJournal.sln --no-build --verbosity normal --configuration Release
 
       - name: Install Node.js dependencies
         working-directory: ./mentalhealthjournal.client
