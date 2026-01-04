@@ -28,11 +28,24 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Build with dotnet
-        run: dotnet build MentalHealthJournal.Server/MentalHealthJournal.Server.csproj --configuration Release
+      - name: Build Frontend
+        run: |
+          cd mentalhealthjournal.client
+          npm install
+          npm run build
+          mkdir -p ../MentalHealthJournal.Server/wwwroot
+          cp -r dist/* ../MentalHealthJournal.Server/wwwroot/
 
-      - name: dotnet publish
-        run: dotnet publish MentalHealthJournal.Server/MentalHealthJournal.Server.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
+      - name: Build Backend
+        run: |
+          cd MentalHealthJournal.Server
+          dotnet restore
+          dotnet build --configuration Release
+
+      - name: Publish Backend
+        run: |
+          cd MentalHealthJournal.Server
+          dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
