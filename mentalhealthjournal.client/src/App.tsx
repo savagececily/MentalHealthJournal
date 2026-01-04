@@ -5,6 +5,7 @@ import Login from './components/Login';
 import UsernameSetup from './components/UsernameSetup';
 import About from './About';
 import { VoiceRecorder } from './components/VoiceRecorder';
+import { DataExport } from './components/DataExport';
 import './App.css';
 import './Tabs.css';
 
@@ -42,7 +43,7 @@ function App() {
     const [loading, setLoading] = useState(false);
     const [analyzing, setAnalyzing] = useState(false);
     const [showAbout, setShowAbout] = useState(false);
-    const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights'>('new');
+    const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights' | 'export'>('new');
     const [trends, setTrends] = useState<TrendData | null>(null);
     const [latestEntry, setLatestEntry] = useState<JournalEntry | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -310,6 +311,12 @@ function App() {
                     >
                         📊 Insights
                     </button>
+                    <button 
+                        className={`tab ${activeTab === 'export' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('export')}
+                    >
+                        📦 Export Data
+                    </button>
                 </div>
             </div>
 
@@ -561,6 +568,12 @@ function App() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {activeTab === 'export' && token && (
+                    <div className="export-tab">
+                        <DataExport token={token} />
                     </div>
                 )}
             </div>

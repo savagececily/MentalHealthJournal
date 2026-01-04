@@ -110,6 +110,7 @@ namespace MentalHealthJournal.Server
             builder.Services.AddSingleton<IBlobStorageService, BlobStorageService>();
             builder.Services.AddSingleton<ICosmosDbService, CosmosDbService>();
             builder.Services.AddSingleton<IUserService, UserService>();
+            builder.Services.AddSingleton<IDataExportService, DataExportService>();
 
             // === JWT Authentication ===
             var jwtKey = config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured");
