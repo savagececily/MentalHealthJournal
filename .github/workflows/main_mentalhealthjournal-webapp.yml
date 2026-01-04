@@ -35,28 +35,20 @@ jobs:
           cache-dependency-path: mentalhealthjournal.client/package-lock.json
 
       - name: Restore .NET dependencies
-        run: dotnet restore MentalHealthJournal.sln
-
-      - name: Build .NET solution
-        run: dotnet build MentalHealthJournal.sln --configuration Release --no-restore
-
-      - name: Run .NET tests
-        run: dotnet test MentalHealthJournal.sln --no-build --verbosity normal --configuration Release
+        run: dotnet restore MentalHealthJournal.Server/MentalHealthJournal.Server.csproj
 
       - name: Install Node.js dependencies
         working-directory: ./mentalhealthjournal.client
         run: npm ci
-
-      - name: Lint frontend code
-        working-directory: ./mentalhealthjournal.client
-        run: npm run lint
-        continue-on-error: true
 
       - name: Build React frontend
         working-directory: ./mentalhealthjournal.client
         run: npm run build
         env:
           CI: false
+
+      - name: Run .NET tests
+        run: dotnet test MentalHealthJournal.Tests/MentalHealthJournal.Tests.csproj --verbosity normal --configuration Release
 
       - name: Publish .NET application
         run: dotnet publish MentalHealthJournal.Server/MentalHealthJournal.Server.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
