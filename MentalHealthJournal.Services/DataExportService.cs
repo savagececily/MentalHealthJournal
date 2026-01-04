@@ -28,7 +28,7 @@ namespace MentalHealthJournal.Services
                 _logger.LogInformation("Exporting data to JSON for user {UserId}", userId);
 
                 // Get user data
-                var user = await _userService.GetUserByIdAsync(userId, cancellationToken);
+                var user = await _userService.GetUserByIdAsync(userId);
                 var entries = await _cosmosService.GetEntriesForUserAsync(userId, cancellationToken);
 
                 // Create export object
@@ -37,7 +37,8 @@ namespace MentalHealthJournal.Services
                     ExportDate = DateTime.UtcNow,
                     User = new
                     {
-                        UserId = user?.GoogleId,
+                        UserId = user?.ProviderId,
+                        Provider = user?.Provider,
                         Username = user?.Username,
                         Email = user?.Email
                     },

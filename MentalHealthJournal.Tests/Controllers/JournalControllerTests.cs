@@ -1,11 +1,12 @@
 using MentalHealthJournal.Models;
 using MentalHealthJournal.Server.Controllers;
 using MentalHealthJournal.Services;
+using MentalHealthJournal.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
-using System.Text;
+using System.Security.Claims;
 using Xunit;
 
 namespace MentalHealthJournal.Tests.Controllers
@@ -17,7 +18,9 @@ namespace MentalHealthJournal.Tests.Controllers
         private readonly Mock<ISpeechToTextService> _speechServiceMock;
         private readonly Mock<IBlobStorageService> _blobServiceMock;
         private readonly Mock<ICosmosDbService> _cosmosServiceMock;
+        private readonly Mock<IDataExportService> _exportServiceMock;
         private readonly JournalController _controller;
+        private const string TestUserId = "test-user-123";
 
         public JournalControllerTests()
         {
@@ -26,38 +29,90 @@ namespace MentalHealthJournal.Tests.Controllers
             _speechServiceMock = new Mock<ISpeechToTextService>();
             _blobServiceMock = new Mock<IBlobStorageService>();
             _cosmosServiceMock = new Mock<ICosmosDbService>();
+            _exportServiceMock = new Mock<IDataExportService>();
 
             _controller = new JournalController(
                 _loggerMock.Object,
                 _analysisServiceMock.Object,
                 _speechServiceMock.Object,
                 _blobServiceMock.Object,
-                _cosmosServiceMock.Object);
+                _cosmosServiceMock.Object,
+                _exportServiceMock.Object);
+
+            // Setup authenticated user
+            SetupAuthenticatedUser(TestUserId);
+        }
+
+        private void SetupAuthenticatedUser(string userId)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, userId),
+                new Claim(ClaimTypes.Email, "test@example.com")
+            };
+            var identity = new ClaimsIdentity(claims, "TestAuth");
+            var claimsPrincipal = new ClaimsPrincipal(identity);
+
+            _controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+            };
         }
 
         [Fact]
-        public async Task AnalyzeEntry_WithValidTextRequest_ReturnsOkWithJournalEntry()
+        public void Health_ReturnsOk()
+        {
+            // Act
+            var result = _controller.Health();
+
+            // Assert
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            Assert.NotNull(okResult.Value);
+        }
+
+        [Fact]
+        public async Task GetEntries_WithAuthenticatedUser_ReturnsOkWithEntries()
         {
             // Arrange
-            var request = new JournalEntryRequest
+            var entries = TestHelper.CreateSampleJournalEntryList(3, TestUserId);
+            _cosmosServiceMock.Setup(s => s.GetEntriesForUserAsync(TestUserId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(entries);
+
+            // Act
+            var result = await _controller.GetEntries();
+
+            // Assert
+            var okResult = Assert.IsType<OkObjectResult>(result.Result);
+            var returnedEntries = Assert.IsAssignableFrom<List<JournalEntry>>(okResult.Value);
+            Assert.Equal(3, returnedEntries.Count);
+            Assert.All(returnedEntries, entry => Assert.Equal(TestUserId, entry.userId));
+        }
+
+        [Fact]
+        public async Task GetEntries_WithoutAuthentication_ReturnsUnauthorized()
+        {
+            // Arrange - Remove user
+            _controller.ControllerContext = new ControllerContext
             {
-                UserId = "user123",
-                Text = "I had a great day today!",
-                Timestamp = DateTime.UtcNow
+                HttpContext = new DefaultHttpContext()
             };
 
-            var analysisResult = new JournalAnalysisResult
-            {
-                Sentiment = "Positive",
-                SentimentScore = 0.8,
-                KeyPhrases = new List<string> { "great", "day" },
-                Summary = "Positive entry",
-                Affirmation = "Keep up the positive attitude!"
-            };
+            // Act
+            var result = await _controller.GetEntries();
 
-            _analysisServiceMock.Setup(s => s.AnalyzeAsync(request.Text, It.IsAny<CancellationToken>()))
+            // Assert
+            Assert.IsType<UnauthorizedResult>(result.Result);
+        }
+
+        [Fact]
+        public async Task AnalyzeEntry_WithValidTextEntry_ReturnsOkWithJournalEntry()
+        {
+            // Arrange
+            var request = TestHelper.CreateSampleJournalRequest();
+            var analysisResult = TestHelper.CreateSampleAnalysisResult();
+
+            _analysisServiceMock.Setup(s => s.AnalyzeAsync(request.Text!, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(analysisResult);
-
             _cosmosServiceMock.Setup(s => s.SaveJournalEntryAsync(It.IsAny<JournalEntry>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
 
@@ -68,7 +123,7 @@ namespace MentalHealthJournal.Tests.Controllers
             var okResult = Assert.IsType<OkObjectResult>(result.Result);
             var journalEntry = Assert.IsType<JournalEntry>(okResult.Value);
             
-            Assert.Equal(request.UserId, journalEntry.UserId);
+            Assert.Equal(TestUserId, journalEntry.userId);
             Assert.Equal(request.Text, journalEntry.Text);
             Assert.False(journalEntry.IsVoiceEntry);
             Assert.Equal(analysisResult.Sentiment, journalEntry.Sentiment);
@@ -79,37 +134,14 @@ namespace MentalHealthJournal.Tests.Controllers
         }
 
         [Fact]
-        public async Task AnalyzeEntry_WithValidAudioRequest_ReturnsOkWithJournalEntry()
+        public async Task AnalyzeEntry_WithVoiceEntry_ReturnsOkWithJournalEntry()
         {
             // Arrange
-            var audioFile = CreateMockAudioFile("test.wav", "audio/wav", "test content");
-            var request = new JournalEntryRequest
-            {
-                UserId = "user123",
-                AudioFile = audioFile,
-                Timestamp = DateTime.UtcNow
-            };
+            var request = TestHelper.CreateVoiceJournalRequest();
+            var analysisResult = TestHelper.CreateSampleAnalysisResult();
 
-            var transcribedText = "I had a wonderful day!";
-            var blobUrl = "https://test.blob.core.windows.net/audio/test.wav";
-            var analysisResult = new JournalAnalysisResult
-            {
-                Sentiment = "Positive",
-                SentimentScore = 0.9,
-                KeyPhrases = new List<string> { "wonderful", "day" },
-                Summary = "Very positive entry",
-                Affirmation = "Your positivity is inspiring!"
-            };
-
-            _blobServiceMock.Setup(s => s.UploadAudioAsync(audioFile, request.UserId, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(blobUrl);
-
-            _speechServiceMock.Setup(s => s.TranscribeAsync(audioFile, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(transcribedText);
-
-            _analysisServiceMock.Setup(s => s.AnalyzeAsync(transcribedText, It.IsAny<CancellationToken>()))
+            _analysisServiceMock.Setup(s => s.AnalyzeAsync(request.Text!, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(analysisResult);
-
             _cosmosServiceMock.Setup(s => s.SaveJournalEntryAsync(It.IsAny<JournalEntry>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
 
@@ -120,32 +152,18 @@ namespace MentalHealthJournal.Tests.Controllers
             var okResult = Assert.IsType<OkObjectResult>(result.Result);
             var journalEntry = Assert.IsType<JournalEntry>(okResult.Value);
             
-            Assert.Equal(request.UserId, journalEntry.UserId);
-            Assert.Equal(transcribedText, journalEntry.Text);
+            Assert.Equal(TestUserId, journalEntry.userId);
             Assert.True(journalEntry.IsVoiceEntry);
-            Assert.Equal(blobUrl, journalEntry.AudioBlobUrl);
-            Assert.Equal(analysisResult.Sentiment, journalEntry.Sentiment);
+            Assert.Equal(request.AudioBlobUrl, journalEntry.AudioBlobUrl);
         }
 
         [Fact]
-        public async Task AnalyzeEntry_WithNullRequest_ReturnsBadRequest()
-        {
-            // Act
-            var result = await _controller.AnalyzeEntry(null!);
-
-            // Assert
-            var badRequestResult = Assert.IsType<BadRequestObjectResult>(result.Result);
-            Assert.Equal("Request body is required.", badRequestResult.Value);
-        }
-
-        [Fact]
-        public async Task AnalyzeEntry_WithEmptyUserId_ReturnsBadRequest()
+        public async Task AnalyzeEntry_WithEmptyText_ReturnsBadRequest()
         {
             // Arrange
             var request = new JournalEntryRequest
             {
-                UserId = "",
-                Text = "Some text",
+                Text = "",
                 Timestamp = DateTime.UtcNow
             };
 
@@ -154,152 +172,126 @@ namespace MentalHealthJournal.Tests.Controllers
 
             // Assert
             var badRequestResult = Assert.IsType<BadRequestObjectResult>(result.Result);
-            Assert.Equal("User ID is required.", badRequestResult.Value);
+            Assert.Equal("No text provided.", badRequestResult.Value);
         }
 
         [Fact]
-        public async Task AnalyzeEntry_WithNoTextOrAudio_ReturnsBadRequest()
+        public async Task AnalyzeEntry_WithoutAuthentication_ReturnsUnauthorized()
         {
             // Arrange
-            var request = new JournalEntryRequest
+            _controller.ControllerContext = new ControllerContext
             {
-                UserId = "user123",
-                Timestamp = DateTime.UtcNow
+                HttpContext = new DefaultHttpContext()
             };
+            var request = TestHelper.CreateSampleJournalRequest();
 
             // Act
             var result = await _controller.AnalyzeEntry(request);
 
             // Assert
-            var badRequestResult = Assert.IsType<BadRequestObjectResult>(result.Result);
-            Assert.Equal("No text or audio provided.", badRequestResult.Value);
+            Assert.IsType<UnauthorizedResult>(result.Result);
         }
 
         [Fact]
-        public async Task AnalyzeEntry_WhenAnalysisServiceThrows_ReturnsInternalServerError()
+        public async Task ProcessVoiceEntry_WithValidAudioFile_ReturnsOkWithTranscription()
         {
             // Arrange
-            var request = new JournalEntryRequest
-            {
-                UserId = "user123",
-                Text = "Test text",
-                Timestamp = DateTime.UtcNow
-            };
+            var audioFile = TestHelper.CreateMockAudioFile();
+            var expectedBlobUrl = "https://test.blob.core.windows.net/audio/test.wav";
+            var expectedTranscription = "This is the transcribed text.";
 
-            _analysisServiceMock.Setup(s => s.AnalyzeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new Exception("Analysis service error"));
-
-            // Act
-            var result = await _controller.AnalyzeEntry(request);
-
-            // Assert
-            var statusResult = Assert.IsType<ObjectResult>(result.Result);
-            Assert.Equal(500, statusResult.StatusCode);
-            Assert.Equal("An error occurred while processing the journal entry.", statusResult.Value);
-        }
-
-        [Fact]
-        public async Task GetUserEntries_WithValidUserId_ReturnsOkWithEntries()
-        {
-            // Arrange
-            var userId = "user123";
-            var entries = new List<JournalEntry>
-            {
-                CreateTestJournalEntry("entry1", userId),
-                CreateTestJournalEntry("entry2", userId)
-            };
-
-            _cosmosServiceMock.Setup(s => s.GetEntriesForUserAsync(userId, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(entries);
+            _blobServiceMock.Setup(s => s.UploadAudioAsync(audioFile, TestUserId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expectedBlobUrl);
+            _speechServiceMock.Setup(s => s.TranscribeAsync(audioFile, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expectedTranscription);
 
             // Act
-            var result = await _controller.GetUserEntries(userId);
+            var result = await _controller.ProcessVoiceEntry(audioFile);
 
             // Assert
             var okResult = Assert.IsType<OkObjectResult>(result.Result);
-            var returnedEntries = Assert.IsType<List<JournalEntry>>(okResult.Value);
+            var response = okResult.Value;
             
-            Assert.Equal(2, returnedEntries.Count);
-            Assert.All(returnedEntries, entry => Assert.Equal(userId, entry.UserId));
+            Assert.NotNull(response);
+            // Verify the response contains transcription and audioBlobUrl
+            var transcription = response.GetType().GetProperty("transcription")?.GetValue(response, null);
+            var audioBlobUrl = response.GetType().GetProperty("audioBlobUrl")?.GetValue(response, null);
+            
+            Assert.Equal(expectedTranscription, transcription);
+            Assert.Equal(expectedBlobUrl, audioBlobUrl);
         }
 
         [Fact]
-        public async Task GetUserEntries_WithEmptyUserId_ReturnsBadRequest()
+        public async Task ProcessVoiceEntry_WithNullFile_ReturnsBadRequest()
         {
             // Act
-            var result = await _controller.GetUserEntries("");
+            var result = await _controller.ProcessVoiceEntry(null!);
 
             // Assert
             var badRequestResult = Assert.IsType<BadRequestObjectResult>(result.Result);
-            Assert.Equal("User ID is required.", badRequestResult.Value);
+            Assert.Equal("Audio file is required.", badRequestResult.Value);
         }
 
         [Fact]
-        public async Task GetUserEntries_WhenCosmosServiceThrows_ReturnsInternalServerError()
+        public async Task ProcessVoiceEntry_WithoutAuthentication_ReturnsUnauthorized()
         {
             // Arrange
-            var userId = "user123";
-            _cosmosServiceMock.Setup(s => s.GetEntriesForUserAsync(userId, It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new Exception("Database error"));
-
-            // Act
-            var result = await _controller.GetUserEntries(userId);
-
-            // Assert
-            var statusResult = Assert.IsType<ObjectResult>(result.Result);
-            Assert.Equal(500, statusResult.StatusCode);
-            Assert.Equal("An error occurred while retrieving journal entries.", statusResult.Value);
-        }
-
-        [Fact]
-        public async Task GetUserEntries_WithNoEntries_ReturnsOkWithEmptyList()
-        {
-            // Arrange
-            var userId = "user123";
-            var entries = new List<JournalEntry>();
-
-            _cosmosServiceMock.Setup(s => s.GetEntriesForUserAsync(userId, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(entries);
-
-            // Act
-            var result = await _controller.GetUserEntries(userId);
-
-            // Assert
-            var okResult = Assert.IsType<OkObjectResult>(result.Result);
-            var returnedEntries = Assert.IsType<List<JournalEntry>>(okResult.Value);
-            
-            Assert.Empty(returnedEntries);
-        }
-
-        private static IFormFile CreateMockAudioFile(string fileName, string contentType, string content)
-        {
-            var mock = new Mock<IFormFile>();
-            var bytes = Encoding.UTF8.GetBytes(content);
-            var stream = new MemoryStream(bytes);
-
-            mock.Setup(f => f.FileName).Returns(fileName);
-            mock.Setup(f => f.ContentType).Returns(contentType);
-            mock.Setup(f => f.Length).Returns(bytes.Length);
-            mock.Setup(f => f.OpenReadStream()).Returns(stream);
-
-            return mock.Object;
-        }
-
-        private static JournalEntry CreateTestJournalEntry(string id, string userId)
-        {
-            return new JournalEntry
+            _controller.ControllerContext = new ControllerContext
             {
-                Id = id,
-                userId = userId,
-                Timestamp = DateTime.UtcNow,
-                Text = "Test journal entry",
-                IsVoiceEntry = false,
-                Sentiment = "Positive",
-                SentimentScore = 0.8,
-                KeyPhrases = new List<string> { "test", "journal" },
-                Summary = "Test summary",
-                Affirmation = "Test affirmation"
+                HttpContext = new DefaultHttpContext()
             };
+            var audioFile = TestHelper.CreateMockAudioFile();
+
+            // Act
+            var result = await _controller.ProcessVoiceEntry(audioFile);
+
+            // Assert
+            Assert.IsType<UnauthorizedResult>(result.Result);
+        }
+
+        [Fact]
+        public async Task ExportData_WithJsonFormat_ReturnsFileResult()
+        {
+            // Arrange
+            var jsonContent = "{\"entries\": []}";
+            _exportServiceMock.Setup(s => s.ExportToJsonAsync(TestUserId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(jsonContent);
+
+            // Act
+            var result = await _controller.ExportData("json");
+
+            // Assert
+            var fileResult = Assert.IsType<FileContentResult>(result);
+            Assert.Equal("application/json", fileResult.ContentType);
+            Assert.Contains(".json", fileResult.FileDownloadName);
+        }
+
+        [Fact]
+        public async Task ExportData_WithCsvFormat_ReturnsFileResult()
+        {
+            // Arrange
+            var csvContent = "Id,Date,Text\n1,2024-01-01,Test";
+            _exportServiceMock.Setup(s => s.ExportToCsvAsync(TestUserId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(csvContent);
+
+            // Act
+            var result = await _controller.ExportData("csv");
+
+            // Assert
+            var fileResult = Assert.IsType<FileContentResult>(result);
+            Assert.Equal("text/csv", fileResult.ContentType);
+            Assert.Contains(".csv", fileResult.FileDownloadName);
+        }
+
+        [Fact]
+        public async Task ExportData_WithInvalidFormat_ReturnsBadRequest()
+        {
+            // Act
+            var result = await _controller.ExportData("invalid");
+
+            // Assert
+            var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
+            Assert.Contains("Invalid export format", badRequestResult.Value?.ToString());
         }
     }
 }

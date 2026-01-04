@@ -1,5 +1,6 @@
 using MentalHealthJournal.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using Moq;
 using System.Text;
 
@@ -11,7 +12,7 @@ namespace MentalHealthJournal.Tests.Helpers
         {
             return new JournalEntry
             {
-                Id = id ?? Guid.NewGuid().ToString(),
+                id = id ?? Guid.NewGuid().ToString(),
                 userId = userId,
                 Timestamp = DateTime.UtcNow,
                 Text = "This is a sample journal entry for testing purposes.",
@@ -32,23 +33,24 @@ namespace MentalHealthJournal.Tests.Helpers
             return entry;
         }
 
-        public static JournalEntryRequest CreateSampleJournalRequest(string userId = "testuser")
+        public static JournalEntryRequest CreateSampleJournalRequest()
         {
             return new JournalEntryRequest
             {
-                UserId = userId,
                 Text = "This is a test journal entry.",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                IsVoiceEntry = false
             };
         }
 
-        public static JournalEntryRequest CreateVoiceJournalRequest(string userId = "testuser")
+        public static JournalEntryRequest CreateVoiceJournalRequest()
         {
             return new JournalEntryRequest
             {
-                UserId = userId,
-                AudioFile = CreateMockAudioFile(),
-                Timestamp = DateTime.UtcNow
+                Text = "Transcribed text from voice entry",
+                AudioBlobUrl = "https://test.blob.core.windows.net/audio/test.wav",
+                Timestamp = DateTime.UtcNow,
+                IsVoiceEntry = true
             };
         }
 
@@ -85,28 +87,30 @@ namespace MentalHealthJournal.Tests.Helpers
                 AzureOpenAI = new AzureOpenAISettings
                 {
                     Endpoint = "https://test-openai.openai.azure.com",
-                    Key = "test-key",
                     DeploymentName = "test-deployment"
                 },
                 AzureCognitiveServices = new AzureCognitiveServicesSettings
                 {
                     Endpoint = "https://test-cognitive.cognitiveservices.azure.com",
-                    Key = "test-key",
                     Region = "eastus"
                 },
                 AzureBlobStorage = new AzureBlobStorageSettings
                 {
-                    ConnectionString = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=test;EndpointSuffix=core.windows.net",
+                    ServiceUri = "https://test.blob.core.windows.net",
                     ContainerName = "test-audio"
                 },
                 CosmosDb = new CosmosDbSettings
                 {
                     Endpoint = "https://test-cosmos.documents.azure.com:443/",
-                    Key = "test-key",
                     DatabaseName = "TestMentalHealthJournal",
                     JournalEntryContainer = "TestJournalEntries"
                 }
             };
+        }
+
+        public static IOptions<AppSettings> CreateTestOptions()
+        {
+            return Options.Create(CreateTestAppSettings());
         }
 
         public static List<JournalEntry> CreateSampleJournalEntryList(int count = 3, string userId = "testuser")
