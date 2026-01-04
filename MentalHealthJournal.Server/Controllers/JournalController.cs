@@ -18,18 +18,21 @@ namespace MentalHealthJournal.Server.Controllers
         private readonly ISpeechToTextService _speechService;
         private readonly IBlobStorageService _blobService;
         private readonly ICosmosDbService _cosmosService;
+        private readonly IDataExportService _exportService;
 
         public JournalController(ILogger<JournalController> logger, 
             IJournalAnalysisService analysisService, 
             ISpeechToTextService speechService, 
             IBlobStorageService blobService,
-            ICosmosDbService cosmosService)
+            ICosmosDbService cosmosService,
+            IDataExportService exportService)
         {
             _logger = logger;
             _analysisService = analysisService;
             _speechService = speechService;
             _blobService = blobService;
             _cosmosService = cosmosService;
+            _exportService = exportService;
             
             _logger.LogInformation("JournalController initialized");
         }
@@ -169,6 +172,53 @@ namespace MentalHealthJournal.Server.Controllers
             {
                 _logger.LogError(ex, "Error processing voice entry for user {UserId}", userId);
                 return StatusCode(500, "An error occurred while processing the voice entry.");
+            }
+        }
+
+        [HttpGet("export/{format}")]
+        public async Task<IActionResult> ExportData(string format, CancellationToken cancellationToken = default)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            _logger.LogInformation("Export request for user {UserId}, format: {Format}", userId, format);
+
+            try
+            {
+                string content;
+                string contentType;
+                string fileName;
+
+                switch (format.ToLower())
+                {
+                    case "json":
+                        content = await _exportService.ExportToJsonAsync(userId, cancellationToken);
+                        contentType = "application/json";
+                        fileName = $"mental-health-journal-export-{DateTime.UtcNow:yyyy-MM-dd}.json";
+                        break;
+
+                    case "csv":
+                        content = await _exportService.ExportToCsvAsync(userId, cancellationToken);
+                        contentType = "text/csv";
+                        fileName = $"mental-health-journal-export-{DateTime.UtcNow:yyyy-MM-dd}.csv";
+                        break;
+
+                    default:
+                        return BadRequest("Invalid export format. Supported formats: json, csv");
+                }
+
+                var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+                _logger.LogInformation("Export completed for user {UserId}, format: {Format}, size: {Size} bytes", userId, format, bytes.Length);
+
+                return File(bytes, contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting data for user {UserId}, format: {Format}", userId, format);
+                return StatusCode(500, "An error occurred while exporting your data.");
             }
         }
     }
