@@ -1,6 +1,3 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy ASP.Net Core app to Azure Web App - MentalHealthJournal-WebApp
 
 on:
@@ -11,18 +8,18 @@ on:
 
 env:
   DOTNET_VERSION: '8.x'
-  NODE_VERSION: '22.x'
+  NODE_VERSION: '20.x'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up .NET Core
+      - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
@@ -37,44 +34,48 @@ jobs:
       - name: Restore .NET dependencies
         run: dotnet restore MentalHealthJournal.Server/MentalHealthJournal.Server.csproj
 
-      - name: Install Node.js dependencies
-        working-directory: ./mentalhealthjournal.client
+      - name: Install Node dependencies
+        working-directory: mentalhealthjournal.client
         run: npm ci
 
-      - name: Build React frontend
-        working-directory: ./mentalhealthjournal.client
+      - name: Build Vite SPA
+        working-directory: mentalhealthjournal.client
         run: npm run build
-        env:
-          CI: false
+
+      # 🔑 REQUIRED FOR VITE + ASP.NET
+      - name: Copy Vite dist to ASP.NET wwwroot
+        run: |
+          rm -rf MentalHealthJournal.Server/wwwroot/*
+          cp -r mentalhealthjournal.client/dist/* MentalHealthJournal.Server/wwwroot/
 
       - name: Run .NET tests
-        run: dotnet test MentalHealthJournal.Tests/MentalHealthJournal.Tests.csproj --verbosity normal --configuration Release
+        run: dotnet test MentalHealthJournal.Tests/MentalHealthJournal.Tests.csproj --configuration Release
 
-      - name: Publish .NET application
-        run: dotnet publish MentalHealthJournal.Server/MentalHealthJournal.Server.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
+      - name: Publish ASP.NET Core app
+        run: dotnet publish MentalHealthJournal.Server/MentalHealthJournal.Server.csproj -c Release -o ${{ env.DOTNET_ROOT }}/myapp
 
-      - name: Upload artifact for deployment job
+      - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
         with:
-          name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
+          name: app
+          path: ${{ env.DOTNET_ROOT }}/myapp
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
     environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+      name: Production
+      url: ${{ steps.deploy.outputs.webapp-url }}
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
-      - name: Download artifact from build job
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: .net-app
-      
+          name: app
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -83,7 +84,7 @@ jobs:
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_7B20162A54CB4C47AA639857637A3117 }}
 
       - name: Deploy to Azure Web App
-        id: deploy-to-webapp
+        id: deploy
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'MentalHealthJournal-WebApp'
@@ -92,10 +93,7 @@ jobs:
 
       - name: Deployment summary
         run: |
-          echo "### Deployment Successful! 🚀" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Application URL:** ${{ steps.deploy-to-webapp.outputs.webapp-url }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Deployed at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Successful 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${{ steps.deploy.outputs.webapp-url }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-
-          
+          echo "**Deployed at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
