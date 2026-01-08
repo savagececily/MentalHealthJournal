@@ -1,4 +1,4 @@
-import { ApplicationInsights } from '@microsoft/applicationinsights-web';
+import { ApplicationInsights, type ICustomProperties } from '@microsoft/applicationinsights-web';
 import { ReactPlugin } from '@microsoft/applicationinsights-react-js';
 
 const reactPlugin = new ReactPlugin();
@@ -8,11 +8,31 @@ const connectionString = import.meta.env.VITE_APPLICATIONINSIGHTS_CONNECTION_STR
                          // Fallback: try to get it from the backend's config (set by Azure)
                          (window as any).appInsightsConnectionString;
 
-let appInsights: ApplicationInsights;
+// Define a subset of ApplicationInsights methods that are actually used
+interface IAppInsights {
+    trackEvent(event: { name: string; properties?: ICustomProperties }): void;
+    trackException(exception: { exception: Error; properties?: ICustomProperties }): void;
+    trackPageView(): void;
+    trackTrace(trace: { message: string; properties?: ICustomProperties }): void;
+    trackMetric(metric: { name: string; average: number; properties?: ICustomProperties }): void;
+    flush(): void;
+}
+
+// Create a no-op implementation that matches the interface
+const createNoOpAppInsights = (): IAppInsights => ({
+    trackEvent: () => {},
+    trackException: () => {},
+    trackPageView: () => {},
+    trackTrace: () => {},
+    trackMetric: () => {},
+    flush: () => {},
+});
+
+let appInsights: ApplicationInsights | IAppInsights;
 
 // Only initialize Application Insights if we have a connection string
 if (connectionString) {
-    appInsights = new ApplicationInsights({
+    const aiInstance = new ApplicationInsights({
         config: {
             connectionString: connectionString,
             extensions: [reactPlugin],
@@ -24,20 +44,12 @@ if (connectionString) {
             autoTrackPageVisitTime: true,  // Track time spent on pages
         }
     });
-    appInsights.loadAppInsights();
+    aiInstance.loadAppInsights();
+    appInsights = aiInstance;
     console.log('Application Insights initialized');
 } else {
     console.warn('Application Insights connection string not found - telemetry disabled');
-    // Create a no-op instance to prevent errors when tracking methods are called
-    appInsights = {
-        trackEvent: () => {},
-        trackException: () => {},
-        trackPageView: () => {},
-        trackTrace: () => {},
-        trackMetric: () => {},
-        trackDependencyData: () => {},
-        flush: () => {},
-    } as any;
+    appInsights = createNoOpAppInsights();
 }
 
 export { reactPlugin, appInsights };
