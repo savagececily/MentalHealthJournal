@@ -452,16 +452,18 @@ function App() {
                                 </button>
                             </div>
                         )}
-                        {loading ? (
-                            <p className="loading-text">Loading your entries...</p>
-                        ) : !loadingError && entries.length === 0 ? (
-                            <div className="empty-state">
-                                <p>No journal entries yet.</p>
-                                <p>Start writing to track your mental wellness and see AI-powered insights!</p>
-                            </div>
-                        ) : !loadingError && (
-                            <div className="entries-list">
-                                {entries.map((entry) => (
+                        {!loadingError && (
+                            <>
+                                {loading ? (
+                                    <p className="loading-text">Loading your entries...</p>
+                                ) : entries.length === 0 ? (
+                                    <div className="empty-state">
+                                        <p>No journal entries yet.</p>
+                                        <p>Start writing to track your mental wellness and see AI-powered insights!</p>
+                                    </div>
+                                ) : (
+                                    <div className="entries-list">
+                                        {entries.map((entry) => (
                                     <div key={entry.id} className="entry-card">
                                         <div className="entry-header">
                                             <div className="entry-date">
@@ -512,6 +514,8 @@ function App() {
                                     </div>
                                 ))}
                             </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
