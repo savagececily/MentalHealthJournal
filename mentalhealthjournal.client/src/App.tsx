@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppInsightsContext } from '@microsoft/applicationinsights-react-js';
 import { useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
@@ -41,6 +41,7 @@ function App() {
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [journalText, setJournalText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [loadingError, setLoadingError] = useState<string | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [showAbout, setShowAbout] = useState(false);
     const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights' | 'export'>('new');
@@ -50,27 +51,12 @@ function App() {
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [showUsernameSetup, setShowUsernameSetup] = useState(false);
 
-    useEffect(() => {
-        if (isAuthenticated) {
-            loadEntries();
-            // Check if user needs to set username
-            if (!user?.username) {
-                setShowUsernameSetup(true);
-            }
-        }
-    }, [isAuthenticated]);
-
-    useEffect(() => {
-        if (entries.length > 0) {
-            calculateTrends();
-        }
-    }, [entries]);
-
-    async function loadEntries() {
+    const loadEntries = useCallback(async () => {
         if (!token) return;
         
         try {
             setLoading(true);
+            setLoadingError(null);
             const response = await fetch('/api/journal', {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -80,16 +66,22 @@ function App() {
                 const data = await response.json();
                 setEntries(data);
                 appInsights.trackEvent({ name: 'EntriesLoaded', properties: { count: data.length } });
+            } else {
+                const errorText = await response.text();
+                console.error('Error loading entries:', errorText);
+                setLoadingError(`Failed to load entries: ${response.status} ${response.statusText}`);
+                appInsights.trackEvent({ name: 'EntriesLoadFailed', properties: { status: response.status, error: errorText } });
             }
         } catch (error) {
             console.error('Error loading entries:', error);
+            setLoadingError('Unable to connect to the server. Please check your connection.');
             appInsights.trackException({ exception: error as Error, properties: { action: 'loadEntries' } });
         } finally {
             setLoading(false);
         }
-    }
+    }, [token, appInsights]);
 
-    function calculateTrends() {
+    const calculateTrends = useCallback(() => {
         const distribution = {
             positive: 0,
             negative: 0,
@@ -126,7 +118,23 @@ function App() {
             recentTrend,
             averageSentimentScore: entries.length > 0 ? totalScore / entries.length : 0
         });
-    }
+    }, [entries]);
+
+    useEffect(() => {
+        if (isAuthenticated && token) {
+            loadEntries();
+            // Check if user needs to set username
+            if (!user?.username) {
+                setShowUsernameSetup(true);
+            }
+        }
+    }, [isAuthenticated, token, loadEntries, user?.username]);
+
+    useEffect(() => {
+        if (entries.length > 0) {
+            calculateTrends();
+        }
+    }, [entries, calculateTrends]);
 
     async function submitEntry() {
         if (!journalText.trim() && !audioBlob) {
@@ -436,14 +444,22 @@ function App() {
                 {activeTab === 'past' && (
                     <div className="past-entries-tab">
                         <h2>Your Journal History</h2>
+                        {loadingError && (
+                            <div className="error-message">
+                                <p>⚠️ {loadingError}</p>
+                                <button onClick={() => loadEntries()} className="retry-button">
+                                    🔄 Retry Loading Entries
+                                </button>
+                            </div>
+                        )}
                         {loading ? (
                             <p className="loading-text">Loading your entries...</p>
-                        ) : entries.length === 0 ? (
+                        ) : !loadingError && entries.length === 0 ? (
                             <div className="empty-state">
                                 <p>No journal entries yet.</p>
                                 <p>Start writing to track your mental wellness and see AI-powered insights!</p>
                             </div>
-                        ) : (
+                        ) : !loadingError && (
                             <div className="entries-list">
                                 {entries.map((entry) => (
                                     <div key={entry.id} className="entry-card">
