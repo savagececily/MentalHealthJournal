@@ -37,6 +37,10 @@ jobs:
       - name: Install Node dependencies
         working-directory: mentalhealthjournal.client
         run: npm ci
+      
+      - name: Remove env sample files
+        working-directory: mentalhealthjournal.client
+        run: rm -f .env .env.example .env.production
 
       - name: Build Vite SPA
         working-directory: mentalhealthjournal.client
@@ -97,3 +101,4 @@ jobs:
           echo "**URL:** ${{ steps.deploy.outputs.webapp-url }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Deployed at:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
