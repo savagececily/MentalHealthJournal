@@ -28,6 +28,11 @@ namespace MentalHealthJournal.Services
                await _container.CreateItemAsync(journalEntry, new PartitionKey(journalEntry.userId), cancellationToken: cancellationToken);
                 _logger.LogInformation("Journal entry saved successfully for user {UserId}", journalEntry.userId);
             }
+            catch (CosmosException ex)
+            {
+                _logger.LogError(ex, "Cosmos DB error saving journal entry for user {UserId}. Status: {Status}", journalEntry.userId, ex.StatusCode);
+                throw new InvalidOperationException($"Failed to save journal entry: {ex.Message}", ex);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving journal entry for user {UserId}", journalEntry.userId);
@@ -58,6 +63,11 @@ namespace MentalHealthJournal.Services
 
                 _logger.LogInformation("Retrieved {Count} journal entries for user {UserId}", results.Count, userId);
                 return results;
+            }
+            catch (CosmosException ex)
+            {
+                _logger.LogError(ex, "Cosmos DB error retrieving journal entries for user {UserId}. Status: {Status}", userId, ex.StatusCode);
+                throw new InvalidOperationException($"Failed to retrieve journal entries: {ex.Message}", ex);
             }
             catch (Exception ex)
             {

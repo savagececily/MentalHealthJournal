@@ -23,12 +23,13 @@ namespace MentalHealthJournal.Services
 
         public async Task<string> TranscribeAsync(IFormFile audioFile, CancellationToken cancellationToken = default)
         {
+            Stream? stream = null;
             try
             {
                 var config = SpeechConfig.FromSubscription(_speechKey, _region);
                 config.SpeechRecognitionLanguage = "en-US";
 
-                using var stream = audioFile.OpenReadStream();
+                stream = audioFile.OpenReadStream();
                 using var audioInput = AudioConfig.FromStreamInput(new BinaryAudioStreamReader(stream));
                 using var recognizer = new SpeechRecognizer(config, audioInput);
 
@@ -65,26 +66,49 @@ namespace MentalHealthJournal.Services
                 _logger.LogError(ex, "Error during speech recognition for file: {FileName}", audioFile.FileName);
                 throw;
             }
+            finally
+            {
+                // Ensure stream is properly disposed even if exception occurs
+                stream?.Dispose();
+            }
         }
 
         private class BinaryAudioStreamReader : PullAudioInputStreamCallback
         {
             private readonly Stream _stream;
+            private bool _disposed;
 
             public BinaryAudioStreamReader(Stream stream)
             {
-                _stream = stream;
+                _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             }
 
             public override int Read(byte[] dataBuffer, uint size)
             {
+                if (_disposed)
+                    throw new ObjectDisposedException(nameof(BinaryAudioStreamReader));
+                    
                 return _stream.Read(dataBuffer, 0, (int)size);
             }
 
             public override void Close()
             {
-                _stream.Close();
-                base.Close();
+                if (!_disposed)
+                {
+                    _disposed = true;
+                    // Don't close the stream here - it's managed by the caller
+                    base.Close();
+                }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (!_disposed && disposing)
+                {
+                    _disposed = true;
+                    // Don't dispose the stream - it's managed by the caller
+                }
+                base.Dispose(disposing);
             }
         }
     }

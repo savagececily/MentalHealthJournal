@@ -76,6 +76,11 @@ public class UserService : IUserService
     {
         try
         {
+            // NOTE: This performs a cross-partition query which can be expensive
+            // For production, consider:
+            // 1. Creating a secondary container with username as partition key
+            // 2. Using Azure Cognitive Search for username lookups
+            // 3. Caching username availability results
             var query = new QueryDefinition(
                 "SELECT * FROM c WHERE LOWER(c.Username) = LOWER(@username)")
                 .WithParameter("@username", username);

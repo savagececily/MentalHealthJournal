@@ -65,6 +65,11 @@ namespace MentalHealthJournal.Server.Controllers
                 
                 return Ok(entries);
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Service error retrieving journal entries for user {UserId}", userId);
+                return StatusCode(503, "Service temporarily unavailable. Please try again later.");
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving journal entries for user {UserId}", userId);
@@ -103,6 +108,13 @@ namespace MentalHealthJournal.Server.Controllers
                     return BadRequest("No text provided.");
                 }
 
+                // Validate text length (max 10,000 characters)
+                if (entryText.Length > 10000)
+                {
+                    _logger.LogWarning("Text too long for user {UserId}: {Length} characters", userId, entryText.Length);
+                    return BadRequest("Text exceeds maximum length of 10,000 characters.");
+                }
+
                 _logger.LogInformation("Starting AI analysis for user {UserId}, text length: {Length}", userId, entryText.Length);
                 JournalAnalysisResult analysis = await _analysisService.AnalyzeAsync(entryText, cancellationToken);
                 _logger.LogInformation("AI analysis completed for user {UserId}, sentiment: {Sentiment}", userId, analysis.Sentiment);
@@ -125,6 +137,16 @@ namespace MentalHealthJournal.Server.Controllers
                 _logger.LogInformation("Successfully processed and saved journal entry for user {UserId}", request.UserId);
 
                 return Ok(journal);
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Invalid input for journal entry analysis for user {UserId}", userId);
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Service error processing journal entry for user {UserId}", userId);
+                return StatusCode(503, "AI service temporarily unavailable. Please try again later.");
             }
             catch (Exception ex)
             {
@@ -152,6 +174,22 @@ namespace MentalHealthJournal.Server.Controllers
                     return BadRequest("Audio file is required.");
                 }
 
+                // Validate file size (max 10MB)
+                const long maxFileSize = 10 * 1024 * 1024; // 10MB
+                if (audioFile.Length > maxFileSize)
+                {
+                    _logger.LogWarning("Audio file too large: {Size} bytes", audioFile.Length);
+                    return BadRequest($"Audio file exceeds maximum size of {maxFileSize / (1024 * 1024)}MB.");
+                }
+
+                // Validate file type
+                var allowedContentTypes = new[] { "audio/webm", "audio/wav", "audio/mp3", "audio/mpeg", "audio/ogg" };
+                if (!allowedContentTypes.Contains(audioFile.ContentType.ToLower()))
+                {
+                    _logger.LogWarning("Invalid audio file type: {ContentType}", audioFile.ContentType);
+                    return BadRequest("Invalid audio file type. Supported formats: WebM, WAV, MP3, OGG.");
+                }
+
                 _logger.LogInformation("Processing audio file for user {UserId}, size: {Size} bytes", userId, audioFile.Length);
 
                 // Upload audio to blob storage
@@ -167,6 +205,11 @@ namespace MentalHealthJournal.Server.Controllers
                     transcription = transcription,
                     audioBlobUrl = blobUrl
                 });
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Service error processing voice entry for user {UserId}", userId);
+                return StatusCode(503, "Speech or storage service temporarily unavailable. Please try again later.");
             }
             catch (Exception ex)
             {

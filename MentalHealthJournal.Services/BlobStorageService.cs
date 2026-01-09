@@ -52,6 +52,11 @@ namespace MentalHealthJournal.Services
                 _logger.LogInformation("Successfully uploaded audio file to blob storage: {BlobUrl}", blobClient.Uri);
                 return blobClient.Uri.ToString();
             }
+            catch (Azure.RequestFailedException ex)
+            {
+                _logger.LogError(ex, "Azure Storage error uploading audio file for user {UserId}. Status: {Status}", userId, ex.Status);
+                throw new InvalidOperationException($"Failed to upload audio file: {ex.Message}", ex);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error uploading audio file to blob storage for user: {UserId}", userId);
