@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppInsightsContext } from '@microsoft/applicationinsights-react-js';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from './hooks/useAuth';
 import Login from './components/Login';
 import UsernameSetup from './components/UsernameSetup';
 import About from './About';
@@ -50,9 +50,25 @@ function App() {
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [showUsernameSetup, setShowUsernameSetup] = useState(false);
+    const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
+
+    // Clean up blob URL when audioBlob changes or component unmounts
+    useEffect(() => {
+        if (audioBlob) {
+            const url = URL.createObjectURL(audioBlob);
+            setAudioBlobUrl(url);
+            return () => {
+                URL.revokeObjectURL(url);
+                setAudioBlobUrl(null);
+            };
+        }
+        return undefined;
+    }, [audioBlob]);
 
     const loadEntries = useCallback(async () => {
         if (!token) return;
+        
+        let isCancelled = false;
         
         try {
             setLoading(true);
@@ -62,23 +78,38 @@ function App() {
                     'Authorization': `Bearer ${token}`
                 }
             });
+            
+            if (isCancelled) return; // Don't update state if cancelled
+            
             if (response.ok) {
                 const data = await response.json();
-                setEntries(data);
-                appInsights.trackEvent({ name: 'EntriesLoaded', properties: { count: data.length } });
+                if (!isCancelled) {
+                    setEntries(data);
+                    appInsights.trackEvent({ name: 'EntriesLoaded', properties: { count: data.length } });
+                }
             } else {
                 const errorText = await response.text();
                 console.error('Error loading entries:', errorText);
-                setLoadingError(`Failed to load entries: ${response.status} ${response.statusText}`);
-                appInsights.trackEvent({ name: 'EntriesLoadFailed', properties: { status: response.status, error: errorText } });
+                if (!isCancelled) {
+                    setLoadingError(`Failed to load entries: ${response.status} ${response.statusText}`);
+                    appInsights.trackEvent({ name: 'EntriesLoadFailed', properties: { status: response.status, error: errorText } });
+                }
             }
         } catch (error) {
             console.error('Error loading entries:', error);
-            setLoadingError('Unable to connect to the server. Please check your connection.');
-            appInsights.trackException({ exception: error as Error, properties: { action: 'loadEntries' } });
+            if (!isCancelled) {
+                setLoadingError('Unable to connect to the server. Please check your connection.');
+                appInsights.trackException({ exception: error as Error, properties: { action: 'loadEntries' } });
+            }
         } finally {
-            setLoading(false);
+            if (!isCancelled) {
+                setLoading(false);
+            }
         }
+        
+        return () => {
+            isCancelled = true;
+        };
     }, [token, appInsights]);
 
     const calculateTrends = useCallback(() => {
@@ -142,6 +173,16 @@ function App() {
             return;
         }
 
+        if (journalText.trim().length > 10000) {
+            alert('Journal entry is too long. Please limit your entry to 10,000 characters.');
+            return;
+        }
+
+        if (!token) {
+            alert('Authentication error. Please log in again.');
+            return;
+        }
+
         const startTime = Date.now();
         try {
             setAnalyzing(true);
@@ -170,7 +211,8 @@ function App() {
                     audioBlobUrl = voiceResult.audioBlobUrl;
                     isVoiceEntry = true;
                 } else {
-                    throw new Error('Failed to process voice recording');
+                    const errorText = await uploadResponse.text();
+                    throw new Error(`Failed to process voice recording: ${errorText || uploadResponse.statusText}`);
                 }
                 setIsTranscribing(false);
             }
@@ -208,12 +250,14 @@ function App() {
                 });
             } else {
                 const errorText = await response.text();
-                alert(`Failed to save journal entry: ${errorText}`);
-                appInsights.trackEvent({ name: 'JournalSubmitFailed', properties: { error: errorText } });
+                const errorMessage = errorText || `Server error: ${response.status} ${response.statusText}`;
+                alert(`Failed to save journal entry: ${errorMessage}`);
+                appInsights.trackEvent({ name: 'JournalSubmitFailed', properties: { error: errorMessage, status: response.status } });
             }
         } catch (error) {
             console.error('Error submitting entry:', error);
-            alert('Error submitting entry. Please check that the backend is running.');
+            const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+            alert(`Error submitting entry: ${errorMessage}. Please check your connection and try again.`);
             appInsights.trackException({ exception: error as Error, properties: { action: 'submitEntry' } });
         } finally {
             setAnalyzing(false);
@@ -285,14 +329,14 @@ function App() {
                     <div className="header-actions">
                         <div className="user-info">
                             {user?.profilePictureUrl && (
-                                <img src={user.profilePictureUrl} alt={user.name} className="user-avatar" />
+                                <img src={user.profilePictureUrl} alt={`${user.name}'s profile picture`} className="user-avatar" />
                             )}
                             <span className="user-name">{user?.username || user?.name}</span>
                         </div>
-                        <button className="about-button" onClick={() => setShowAbout(true)}>
+                        <button className="about-button" onClick={() => setShowAbout(true)} aria-label="Open about information">
                             About
                         </button>
-                        <button className="logout-button" onClick={logout}>
+                        <button className="logout-button" onClick={logout} aria-label="Log out of your account">
                             Logout
                         </button>
                     </div>
@@ -300,28 +344,40 @@ function App() {
             </header>
 
             <div className="tabs-container">
-                <div className="tabs">
+                <div className="tabs" role="tablist" aria-label="Journal navigation">
                     <button 
                         className={`tab ${activeTab === 'new' ? 'active' : ''}`}
                         onClick={() => setActiveTab('new')}
+                        role="tab"
+                        aria-selected={activeTab === 'new'}
+                        aria-controls="new-entry-panel"
                     >
                         ✏️ New Entry
                     </button>
                     <button 
                         className={`tab ${activeTab === 'past' ? 'active' : ''}`}
                         onClick={() => setActiveTab('past')}
+                        role="tab"
+                        aria-selected={activeTab === 'past'}
+                        aria-controls="past-entries-panel"
                     >
                         📚 Past Entries
                     </button>
                     <button 
                         className={`tab ${activeTab === 'insights' ? 'active' : ''}`}
                         onClick={() => setActiveTab('insights')}
+                        role="tab"
+                        aria-selected={activeTab === 'insights'}
+                        aria-controls="insights-panel"
                     >
                         📊 Insights
                     </button>
                     <button 
                         className={`tab ${activeTab === 'export' ? 'active' : ''}`}
                         onClick={() => setActiveTab('export')}
+                        role="tab"
+                        aria-selected={activeTab === 'export'}
+                        aria-controls="export-panel"
                     >
                         📦 Export Data
                     </button>
@@ -330,17 +386,28 @@ function App() {
 
             <div className="tab-content">
                 {activeTab === 'new' && (
-                    <div className="new-entry-tab">
+                    <div className="new-entry-tab" role="tabpanel" id="new-entry-panel" aria-labelledby="new-entry-tab">
                         <div className="entry-form-section">
                             <h2>Write Your Thoughts</h2>
-                            <textarea
-                                className="journal-input"
-                                placeholder="How are you feeling today? Write your thoughts here..."
-                                value={journalText}
-                                onChange={(e) => setJournalText(e.target.value)}
-                                rows={10}
-                                disabled={analyzing || isTranscribing}
-                            />
+                            <div className="textarea-wrapper">
+                                <textarea
+                                    className="journal-input"
+                                    placeholder="How are you feeling today? Write your thoughts here..."
+                                    value={journalText}
+                                    onChange={(e) => setJournalText(e.target.value)}
+                                    rows={10}
+                                    disabled={analyzing || isTranscribing}
+                                    aria-label="Journal entry text"
+                                    aria-describedby="journal-help-text"
+                                    maxLength={10000}
+                                />
+                                {journalText.length > 0 && (
+                                    <div className="character-count" aria-live="polite">
+                                        {journalText.length} / 10,000 characters
+                                    </div>
+                                )}
+                            </div>
+                            <p id="journal-help-text" className="visually-hidden">Enter your thoughts and feelings for AI-powered sentiment analysis</p>
                             
                             <div className="input-divider">
                                 <span>OR</span>
@@ -354,13 +421,14 @@ function App() {
                                 disabled={analyzing || isTranscribing || journalText.trim().length > 0}
                             />
 
-                            {audioBlob && (
-                                <div className="audio-preview">
+                            {audioBlob && audioBlobUrl && (
+                                <div className="audio-preview" role="region" aria-live="polite" aria-label="Voice recording preview">
                                     <p>🎤 Voice recording ready</p>
-                                    <audio controls src={URL.createObjectURL(audioBlob)} />
+                                    <audio controls src={audioBlobUrl} aria-label="Preview of recorded audio" />
                                     <button 
                                         className="clear-audio-button"
                                         onClick={() => setAudioBlob(null)}
+                                        aria-label="Clear voice recording"
                                     >
                                         Clear Recording
                                     </button>
@@ -371,13 +439,14 @@ function App() {
                                 className="submit-button" 
                                 onClick={submitEntry}
                                 disabled={analyzing || isTranscribing || (!journalText.trim() && !audioBlob)}
+                                aria-label={isTranscribing ? 'Transcribing audio, please wait' : analyzing ? 'Analyzing entry with AI, please wait' : 'Save and analyze journal entry'}
                             >
                                 {isTranscribing ? '🎤 Transcribing audio...' : 
                                  analyzing ? '🤖 Analyzing with AI...' : 
                                  '✨ Save & Analyze Entry'}
                             </button>
                             {(analyzing || isTranscribing) && (
-                                <div className="analyzing-info">
+                                <div className="analyzing-info" role="status" aria-live="polite">
                                     <p>
                                         {isTranscribing ? '🎤 Converting your voice to text...' : 
                                          '🤖 AI is analyzing your entry for sentiment, key phrases, and generating personalized insights...'}

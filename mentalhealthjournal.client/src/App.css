@@ -14,6 +14,19 @@ body {
     min-height: 100vh;
 }
 
+/* Accessibility: Visually hidden but available to screen readers */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
 .app-container {
     min-height: 100vh;
     padding: 2rem;
@@ -153,6 +166,18 @@ body {
     resize: vertical;
     min-height: 120px;
     transition: border-color 0.3s;
+}
+
+.textarea-wrapper {
+    position: relative;
+}
+
+.character-count {
+    text-align: right;
+    font-size: 0.85rem;
+    color: #718096;
+    margin-top: 0.25rem;
+    font-weight: 500;
 }
 
 .journal-input:focus {

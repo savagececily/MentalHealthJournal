@@ -33,7 +33,7 @@ if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
         ], { stdio: 'inherit', }).status) {
             httpsEnabled = true;
         }
-    } catch (error) {
+    } catch {
         console.warn('HTTPS certificate creation failed. Running in HTTP mode.');
     }
 } else {

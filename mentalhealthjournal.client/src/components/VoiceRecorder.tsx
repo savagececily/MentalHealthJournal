@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { audioRecordingService } from '../services/audioRecordingService';
 import './VoiceRecorder.css';
 
@@ -11,6 +11,15 @@ export function VoiceRecorder({ onRecordingComplete, disabled }: VoiceRecorderPr
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Clean up timer on unmount
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+            }
+        };
+    }, []);
 
     const startRecording = async () => {
         try {

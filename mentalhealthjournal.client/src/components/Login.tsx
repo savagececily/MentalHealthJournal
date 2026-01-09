@@ -1,6 +1,6 @@
 import React from 'react';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
 import './Login.css';
 
