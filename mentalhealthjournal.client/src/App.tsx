@@ -6,6 +6,8 @@ import UsernameSetup from './components/UsernameSetup';
 import About from './About';
 import { VoiceRecorder } from './components/VoiceRecorder';
 import { DataExport } from './components/DataExport';
+import { EditEntryModal } from './components/EditEntryModal';
+import { journalService } from './services/journalService';
 import './App.css';
 import './Tabs.css';
 
@@ -51,6 +53,8 @@ function App() {
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [showUsernameSetup, setShowUsernameSetup] = useState(false);
     const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
+    const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
+    const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
 
     // Clean up blob URL when audioBlob changes or component unmounts
     useEffect(() => {
@@ -64,6 +68,67 @@ function App() {
         }
         return undefined;
     }, [audioBlob]);
+
+    const handleUpdateEntry = async (entryId: string, newText: string) => {
+        if (!token) return;
+
+        try {
+            const updatedEntry = await journalService.updateEntry(token, entryId, newText);
+            
+            // Update the entry in the local state
+            setEntries(prevEntries => 
+                prevEntries.map(entry => 
+                    entry.id === entryId ? updatedEntry : entry
+                )
+            );
+            
+            // Update latest entry if it's the one being edited
+            if (latestEntry?.id === entryId) {
+                setLatestEntry(updatedEntry);
+            }
+            
+            appInsights.trackEvent({ 
+                name: 'JournalEntryUpdated',
+                properties: { entryId, sentiment: updatedEntry.sentiment }
+            });
+        } catch (error) {
+            console.error('Error updating entry:', error);
+            appInsights.trackException({ exception: error as Error, properties: { action: 'updateEntry' } });
+            throw error; // Re-throw to be handled by the modal
+        }
+    };
+
+    const handleDeleteEntry = async (entryId: string) => {
+        if (!token) return;
+        
+        const confirmDelete = window.confirm('Are you sure you want to delete this journal entry? This action cannot be undone.');
+        if (!confirmDelete) return;
+
+        setDeletingEntryId(entryId);
+        
+        try {
+            await journalService.deleteEntry(token, entryId);
+            
+            // Remove the entry from local state
+            setEntries(prevEntries => prevEntries.filter(entry => entry.id !== entryId));
+            
+            // Clear latest entry if it's the one being deleted
+            if (latestEntry?.id === entryId) {
+                setLatestEntry(null);
+            }
+            
+            appInsights.trackEvent({ 
+                name: 'JournalEntryDeleted',
+                properties: { entryId }
+            });
+        } catch (error) {
+            console.error('Error deleting entry:', error);
+            alert('Failed to delete entry. Please try again.');
+            appInsights.trackException({ exception: error as Error, properties: { action: 'deleteEntry' } });
+        } finally {
+            setDeletingEntryId(null);
+        }
+    };
 
     const loadEntries = useCallback(async () => {
         if (!token) return;
@@ -580,6 +645,25 @@ function App() {
                                                 ))}
                                             </div>
                                         )}
+
+                                        <div className="entry-actions">
+                                            <button 
+                                                className="edit-entry-button"
+                                                onClick={() => setEditingEntry(entry)}
+                                                disabled={deletingEntryId === entry.id}
+                                                aria-label="Edit journal entry"
+                                            >
+                                                ✏️ Edit
+                                            </button>
+                                            <button 
+                                                className="delete-entry-button"
+                                                onClick={() => handleDeleteEntry(entry.id)}
+                                                disabled={deletingEntryId === entry.id}
+                                                aria-label="Delete journal entry"
+                                            >
+                                                {deletingEntryId === entry.id ? '⏳ Deleting...' : '🗑️ Delete'}
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -669,6 +753,14 @@ function App() {
 
             {showAbout && <About onClose={() => setShowAbout(false)} />}
             {showUsernameSetup && <UsernameSetup onComplete={() => setShowUsernameSetup(false)} />}
+            {editingEntry && (
+                <EditEntryModal
+                    entryId={editingEntry.id}
+                    currentText={editingEntry.text || ''}
+                    onSave={handleUpdateEntry}
+                    onClose={() => setEditingEntry(null)}
+                />
+            )}
         </div>
     );
 }

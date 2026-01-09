@@ -218,6 +218,114 @@ namespace MentalHealthJournal.Server.Controllers
             }
         }
 
+        [HttpPut("{id}")]
+        public async Task<ActionResult<JournalEntry>> UpdateEntry(string id, [FromBody] UpdateJournalEntryRequest request, CancellationToken cancellationToken = default)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            _logger.LogInformation("Received update request for entry {EntryId} from user {UserId}", id, userId);
+
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.Text))
+                {
+                    _logger.LogWarning("Invalid update request for entry {EntryId}", id);
+                    return BadRequest("Entry text is required.");
+                }
+
+                // Validate text length (max 10,000 characters)
+                if (request.Text.Length > 10000)
+                {
+                    _logger.LogWarning("Text too long for entry {EntryId}: {Length} characters", id, request.Text.Length);
+                    return BadRequest("Text exceeds maximum length of 10,000 characters.");
+                }
+
+                // Get existing entry to verify ownership
+                var existingEntry = await _cosmosService.GetJournalEntryByIdAsync(id, userId, cancellationToken);
+                if (existingEntry == null)
+                {
+                    _logger.LogWarning("Entry {EntryId} not found for user {UserId}", id, userId);
+                    return NotFound("Journal entry not found.");
+                }
+
+                // Re-analyze with Azure AI for updated sentiment
+                _logger.LogInformation("Re-analyzing updated entry {EntryId} for user {UserId}", id, userId);
+                JournalAnalysisResult analysis = await _analysisService.AnalyzeAsync(request.Text, cancellationToken);
+                _logger.LogInformation("Re-analysis completed for entry {EntryId}, sentiment: {Sentiment}", id, analysis.Sentiment);
+
+                // Update the entry with new text and analysis results
+                existingEntry.Text = request.Text;
+                existingEntry.Sentiment = analysis.Sentiment;
+                existingEntry.SentimentScore = analysis.SentimentScore;
+                existingEntry.KeyPhrases = analysis.KeyPhrases;
+                existingEntry.Summary = analysis.Summary;
+                existingEntry.Affirmation = analysis.Affirmation;
+                // Note: Keep original Timestamp, IsVoiceEntry, and AudioBlobUrl
+
+                var updatedEntry = await _cosmosService.UpdateJournalEntryAsync(existingEntry, cancellationToken);
+                _logger.LogInformation("Successfully updated entry {EntryId} for user {UserId}", id, userId);
+
+                return Ok(updatedEntry);
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Invalid input for entry update {EntryId}", id);
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Service error updating entry {EntryId} for user {UserId}", id, userId);
+                return StatusCode(503, "Service temporarily unavailable. Please try again later.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating entry {EntryId} for user {UserId}", id, userId);
+                return StatusCode(500, "An error occurred while updating the journal entry.");
+            }
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteEntry(string id, CancellationToken cancellationToken = default)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            _logger.LogInformation("Received delete request for entry {EntryId} from user {UserId}", id, userId);
+
+            try
+            {
+                // Verify entry exists and belongs to user before deleting
+                var existingEntry = await _cosmosService.GetJournalEntryByIdAsync(id, userId, cancellationToken);
+                if (existingEntry == null)
+                {
+                    _logger.LogWarning("Entry {EntryId} not found for deletion by user {UserId}", id, userId);
+                    return NotFound("Journal entry not found.");
+                }
+
+                await _cosmosService.DeleteJournalEntryAsync(id, userId, cancellationToken);
+                _logger.LogInformation("Successfully deleted entry {EntryId} for user {UserId}", id, userId);
+
+                return NoContent(); // 204 No Content is standard for successful DELETE
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Service error deleting entry {EntryId} for user {UserId}", id, userId);
+                return StatusCode(503, "Service temporarily unavailable. Please try again later.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting entry {EntryId} for user {UserId}", id, userId);
+                return StatusCode(500, "An error occurred while deleting the journal entry.");
+            }
+        }
+
         [HttpGet("export/{format}")]
         public async Task<IActionResult> ExportData(string format, CancellationToken cancellationToken = default)
         {

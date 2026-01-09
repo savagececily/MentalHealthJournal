@@ -485,6 +485,51 @@ body {
     font-weight: 600;
 }
 
+.entry-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.edit-entry-button,
+.delete-entry-button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.edit-entry-button {
+    background: #e0e7ff;
+    color: #5a67d8;
+}
+
+.edit-entry-button:hover:not(:disabled) {
+    background: #c7d2fe;
+    transform: translateY(-1px);
+}
+
+.delete-entry-button {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.delete-entry-button:hover:not(:disabled) {
+    background: #fecaca;
+    transform: translateY(-1px);
+}
+
+.edit-entry-button:disabled,
+.delete-entry-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 @media (max-width: 1200px) {
     .content-wrapper {
         grid-template-columns: 1fr;

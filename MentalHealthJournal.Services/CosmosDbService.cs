@@ -75,5 +75,76 @@ namespace MentalHealthJournal.Services
                 throw;
             }
         }
+
+        public async Task<JournalEntry?> GetJournalEntryByIdAsync(string entryId, string userId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Retrieving journal entry {EntryId} for user {UserId}", entryId, userId);
+                var response = await _container.ReadItemAsync<JournalEntry>(entryId, new PartitionKey(userId), cancellationToken: cancellationToken);
+                return response.Resource;
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("Journal entry {EntryId} not found for user {UserId}", entryId, userId);
+                return null;
+            }
+            catch (CosmosException ex)
+            {
+                _logger.LogError(ex, "Cosmos DB error retrieving journal entry {EntryId} for user {UserId}. Status: {Status}", entryId, userId, ex.StatusCode);
+                throw new InvalidOperationException($"Failed to retrieve journal entry: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving journal entry {EntryId} for user {UserId}", entryId, userId);
+                throw;
+            }
+        }
+
+        public async Task<JournalEntry> UpdateJournalEntryAsync(JournalEntry journalEntry, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Updating journal entry {EntryId} for user {UserId}", journalEntry.id, journalEntry.userId);
+                var response = await _container.ReplaceItemAsync(journalEntry, journalEntry.id, new PartitionKey(journalEntry.userId), cancellationToken: cancellationToken);
+                _logger.LogInformation("Journal entry {EntryId} updated successfully for user {UserId}", journalEntry.id, journalEntry.userId);
+                return response.Resource;
+            }
+            catch (CosmosException ex)
+            {
+                _logger.LogError(ex, "Cosmos DB error updating journal entry {EntryId} for user {UserId}. Status: {Status}", journalEntry.id, journalEntry.userId, ex.StatusCode);
+                throw new InvalidOperationException($"Failed to update journal entry: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating journal entry {EntryId} for user {UserId}", journalEntry.id, journalEntry.userId);
+                throw;
+            }
+        }
+
+        public async Task DeleteJournalEntryAsync(string entryId, string userId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Deleting journal entry {EntryId} for user {UserId}", entryId, userId);
+                await _container.DeleteItemAsync<JournalEntry>(entryId, new PartitionKey(userId), cancellationToken: cancellationToken);
+                _logger.LogInformation("Journal entry {EntryId} deleted successfully for user {UserId}", entryId, userId);
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning("Journal entry {EntryId} not found for deletion for user {UserId}", entryId, userId);
+                throw new InvalidOperationException("Journal entry not found");
+            }
+            catch (CosmosException ex)
+            {
+                _logger.LogError(ex, "Cosmos DB error deleting journal entry {EntryId} for user {UserId}. Status: {Status}", entryId, userId, ex.StatusCode);
+                throw new InvalidOperationException($"Failed to delete journal entry: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting journal entry {EntryId} for user {UserId}", entryId, userId);
+                throw;
+            }
+        }
     }
 }
