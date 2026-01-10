@@ -115,6 +115,15 @@ export function CalendarView({ token }: CalendarViewProps) {
                     key={day}
                     className={`calendar-day ${isToday ? 'today' : ''} ${hasEntries ? 'has-entries' : ''}`}
                     onClick={() => hasEntries && setSelectedDate(entry)}
+                    onKeyDown={(e) => {
+                        if (!hasEntries) {
+                            return;
+                        }
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedDate(entry);
+                        }
+                    }}
                     role="button"
                     tabIndex={hasEntries ? 0 : -1}
                     aria-label={`${day} ${hasEntries ? `- ${entry.count} entries` : ''}`}
