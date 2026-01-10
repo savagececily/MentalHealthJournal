@@ -76,19 +76,16 @@ export function CalendarView({ token }: CalendarViewProps) {
         return calendarData.find(entry => entry.date.startsWith(dateStr));
     };
 
+    const SENTIMENT_COLOR_MAP: { [key: string]: string } = {
+        positive: '#4ade80',
+        negative: '#f87171',
+        neutral: '#94a3b8',
+        mixed: '#fbbf24',
+    };
+
     const getSentimentColor = (sentiment: string): string => {
-        switch (sentiment.toLowerCase()) {
-            case 'positive':
-                return '#4ade80';
-            case 'negative':
-                return '#f87171';
-            case 'neutral':
-                return '#94a3b8';
-            case 'mixed':
-                return '#fbbf24';
-            default:
-                return '#cbd5e1';
-        }
+        const normalizedSentiment = sentiment.toLowerCase();
+        return SENTIMENT_COLOR_MAP[normalizedSentiment] ?? '#cbd5e1';
     };
 
     const renderCalendar = () => {
