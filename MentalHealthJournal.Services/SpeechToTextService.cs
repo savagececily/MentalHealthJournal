@@ -23,13 +23,12 @@ namespace MentalHealthJournal.Services
 
         public async Task<string> TranscribeAsync(IFormFile audioFile, CancellationToken cancellationToken = default)
         {
-            Stream? stream = null;
             try
             {
                 var config = SpeechConfig.FromSubscription(_speechKey, _region);
                 config.SpeechRecognitionLanguage = "en-US";
 
-                stream = audioFile.OpenReadStream();
+                using var stream = audioFile.OpenReadStream();
                 using var audioInput = AudioConfig.FromStreamInput(new BinaryAudioStreamReader(stream));
                 using var recognizer = new SpeechRecognizer(config, audioInput);
 
@@ -65,11 +64,6 @@ namespace MentalHealthJournal.Services
             {
                 _logger.LogError(ex, "Error during speech recognition for file: {FileName}", audioFile.FileName);
                 throw;
-            }
-            finally
-            {
-                // Ensure stream is properly disposed even if exception occurs
-                stream?.Dispose();
             }
         }
 
