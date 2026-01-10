@@ -8,7 +8,7 @@ export const journalService = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ id: entryId, text }),
+            body: JSON.stringify({ text }),
         });
 
         if (!response.ok) {
