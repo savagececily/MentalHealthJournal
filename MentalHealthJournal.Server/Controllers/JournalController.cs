@@ -412,7 +412,12 @@ namespace MentalHealthJournal.Server.Controllers
 
             // Default to current month if no dates provided
             var start = startDate ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1).ToUniversalTime();
-            var end = endDate ?? start.AddMonths(1).AddDays(-1).AddHours(23).AddMinutes(59).AddSeconds(59);
+            var end = endDate ?? new DateTime(
+                start.Year,
+                start.Month,
+                DateTime.DaysInMonth(start.Year, start.Month),
+                23, 59, 59,
+                start.Kind);
 
             _logger.LogInformation("Calendar request for user {UserId}, startDate: {Start}, endDate: {End}", userId, start, end);
 
