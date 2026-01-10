@@ -70,21 +70,39 @@ namespace MentalHealthJournal.Services
         private class BinaryAudioStreamReader : PullAudioInputStreamCallback
         {
             private readonly Stream _stream;
+            private bool _disposed;
 
             public BinaryAudioStreamReader(Stream stream)
             {
-                _stream = stream;
+                _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             }
 
             public override int Read(byte[] dataBuffer, uint size)
             {
+                if (_disposed)
+                    throw new ObjectDisposedException(nameof(BinaryAudioStreamReader));
+                    
                 return _stream.Read(dataBuffer, 0, (int)size);
             }
 
             public override void Close()
             {
-                _stream.Close();
-                base.Close();
+                if (!_disposed)
+                {
+                    _disposed = true;
+                    // Don't close the stream here - it's managed by the caller
+                    base.Close();
+                }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (!_disposed && disposing)
+                {
+                    _disposed = true;
+                    // Don't dispose the stream - it's managed by the caller
+                }
+                base.Dispose(disposing);
             }
         }
     }

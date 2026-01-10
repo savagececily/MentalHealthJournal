@@ -6,7 +6,7 @@ const reactPlugin = new ReactPlugin();
 // Get connection string from environment
 const connectionString = import.meta.env.VITE_APPLICATIONINSIGHTS_CONNECTION_STRING || 
                          // Fallback: try to get it from the backend's config (set by Azure)
-                         (window as any).appInsightsConnectionString;
+                         (window as Window & { appInsightsConnectionString?: string }).appInsightsConnectionString;
 
 // Define a subset of ApplicationInsights methods that are actually used
 interface IAppInsights {

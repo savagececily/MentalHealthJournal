@@ -111,11 +111,19 @@ namespace MentalHealthJournal.Server
             builder.Services.AddSingleton<ICosmosDbService, CosmosDbService>();
             builder.Services.AddSingleton<IUserService, UserService>();
             builder.Services.AddSingleton<IDataExportService, DataExportService>();
+            builder.Services.AddSingleton<IStreakService, StreakService>();
 
             // === JWT Authentication ===
             var jwtKey = config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured");
             var jwtIssuer = config["Jwt:Issuer"] ?? "MentalHealthJournal";
             var jwtAudience = config["Jwt:Audience"] ?? "MentalHealthJournalApp";
+
+            // Validate JWT key length for security (minimum 256 bits/32 bytes for HS256)
+            var jwtKeyBytes = Encoding.UTF8.GetBytes(jwtKey);
+            if (jwtKeyBytes.Length < 32)
+            {
+                throw new InvalidOperationException("JWT Key must be at least 256 bits (32 bytes) for secure HS256 signing. Please use a longer key.");
+            }
 
             builder.Services.AddAuthentication(options =>
             {
@@ -169,13 +177,13 @@ namespace MentalHealthJournal.Server
             logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
             
             var appInsightsConnString = config["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-            logger.LogInformation("Application Insights Connection String: {ConnectionString}", 
-                string.IsNullOrEmpty(appInsightsConnString) ? "NOT CONFIGURED" : $"Configured (Key: {appInsightsConnString.Substring(0, Math.Min(50, appInsightsConnString.Length))}...)");
+            logger.LogInformation("Application Insights: {Status}", 
+                string.IsNullOrEmpty(appInsightsConnString) ? "NOT CONFIGURED" : "CONFIGURED");
             
             // Send a test telemetry event
             if (!string.IsNullOrEmpty(appInsightsConnString))
             {
-                logger.LogInformation("Application Insights telemetry is enabled - sending test event");
+                logger.LogInformation("Application Insights telemetry is enabled");
             }
             logger.LogInformation("======================================");
 

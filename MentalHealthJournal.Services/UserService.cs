@@ -1,5 +1,6 @@
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MentalHealthJournal.Models;
 using User = MentalHealthJournal.Models.User;
 
@@ -10,10 +11,11 @@ public class UserService : IUserService
     private readonly Container _usersContainer;
     private readonly ILogger<UserService> _logger;
 
-    public UserService(CosmosClient cosmosClient, ILogger<UserService> logger)
+    public UserService(CosmosClient cosmosClient, ILogger<UserService> logger, IOptions<AppSettings> options)
     {
-        var database = cosmosClient.GetDatabase("MentalHealthJournalDb");
-        _usersContainer = database.GetContainer("Users");
+        var appSettings = options.Value;
+        var database = cosmosClient.GetDatabase(appSettings.CosmosDb.DatabaseName);
+        _usersContainer = database.GetContainer(appSettings.CosmosDb.UserContainer);
         _logger = logger;
     }
 
@@ -76,6 +78,11 @@ public class UserService : IUserService
     {
         try
         {
+            // NOTE: This performs a cross-partition query which can be expensive
+            // For production, consider:
+            // 1. Creating a secondary container with username as partition key
+            // 2. Using Azure Cognitive Search for username lookups
+            // 3. Caching username availability results
             var query = new QueryDefinition(
                 "SELECT * FROM c WHERE LOWER(c.Username) = LOWER(@username)")
                 .WithParameter("@username", username);

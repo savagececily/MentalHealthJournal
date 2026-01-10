@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { authService } from '../services/authService';
 import './UsernameSetup.css';
 
@@ -16,6 +16,8 @@ const UsernameSetup: React.FC<UsernameSetupProps> = ({ onComplete }) => {
     const [error, setError] = useState('');
 
     useEffect(() => {
+        let isCancelled = false;
+        
         const checkAvailability = async () => {
             if (!token || username.length < 3) {
                 setIsAvailable(null);
@@ -25,16 +27,26 @@ const UsernameSetup: React.FC<UsernameSetupProps> = ({ onComplete }) => {
             setIsChecking(true);
             try {
                 const available = await authService.checkUsernameAvailability(token, username);
-                setIsAvailable(available);
+                if (!isCancelled) {
+                    setIsAvailable(available);
+                }
             } catch (err) {
                 console.error('Error checking username:', err);
+                if (!isCancelled) {
+                    setIsAvailable(null);
+                }
             } finally {
-                setIsChecking(false);
+                if (!isCancelled) {
+                    setIsChecking(false);
+                }
             }
         };
 
         const debounce = setTimeout(checkAvailability, 500);
-        return () => clearTimeout(debounce);
+        return () => {
+            clearTimeout(debounce);
+            isCancelled = true;
+        };
     }, [username, token]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +56,12 @@ const UsernameSetup: React.FC<UsernameSetupProps> = ({ onComplete }) => {
 
         if (username.length < 3 || username.length > 20) {
             setError('Username must be between 3 and 20 characters');
+            return;
+        }
+
+        // Validate username format: alphanumeric and underscores only
+        if (!/^[a-z0-9_]+$/.test(username)) {
+            setError('Username can only contain lowercase letters, numbers, and underscores');
             return;
         }
 
@@ -59,8 +77,8 @@ const UsernameSetup: React.FC<UsernameSetupProps> = ({ onComplete }) => {
             const updatedUser = await authService.updateUsername(token, username);
             updateUser(updatedUser);
             onComplete();
-        } catch (err: any) {
-            setError(err.message || 'Failed to set username');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to set username');
         } finally {
             setIsSaving(false);
         }

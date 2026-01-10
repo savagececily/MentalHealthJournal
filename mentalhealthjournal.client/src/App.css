@@ -14,6 +14,19 @@ body {
     min-height: 100vh;
 }
 
+/* Accessibility: Visually hidden but available to screen readers */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
 .app-container {
     min-height: 100vh;
     padding: 2rem;
@@ -153,6 +166,18 @@ body {
     resize: vertical;
     min-height: 120px;
     transition: border-color 0.3s;
+}
+
+.textarea-wrapper {
+    position: relative;
+}
+
+.character-count {
+    text-align: right;
+    font-size: 0.85rem;
+    color: #718096;
+    margin-top: 0.25rem;
+    font-weight: 500;
 }
 
 .journal-input:focus {
@@ -460,6 +485,51 @@ body {
     font-weight: 600;
 }
 
+.entry-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.edit-entry-button,
+.delete-entry-button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.edit-entry-button {
+    background: #e0e7ff;
+    color: #5a67d8;
+}
+
+.edit-entry-button:hover:not(:disabled) {
+    background: #c7d2fe;
+    transform: translateY(-1px);
+}
+
+.delete-entry-button {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.delete-entry-button:hover:not(:disabled) {
+    background: #fecaca;
+    transform: translateY(-1px);
+}
+
+.edit-entry-button:disabled,
+.delete-entry-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 @media (max-width: 1200px) {
     .content-wrapper {
         grid-template-columns: 1fr;
@@ -522,4 +592,30 @@ body {
     background: rgba(248, 113, 113, 0.5);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(248, 113, 113, 0.3);
+}
+
+/* Calendar tab styling */
+.calendar-tab {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.calendar-tab h2 {
+    text-align: center;
+    color: white;
+    margin-bottom: 2rem;
+    font-size: 2rem;
+}
+
+.calendar-streak-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+@media (max-width: 768px) {
+    .calendar-tab h2 {
+        font-size: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
 }

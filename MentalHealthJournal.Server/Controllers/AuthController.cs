@@ -166,6 +166,12 @@ public class AuthController : ControllerBase
                 return BadRequest("Username must be between 3 and 20 characters");
             }
 
+            // Validate username format and length: 3-20 chars, alphanumeric and underscores only
+            if (!System.Text.RegularExpressions.Regex.IsMatch(request.Username, @"^[a-z0-9_]{3,20}$"))
+            {
+                return BadRequest("Username can only contain lowercase letters, numbers, and underscores");
+            }
+
             // Check if username is available
             var isAvailable = await _userService.IsUsernameAvailableAsync(request.Username, userIdClaim);
             if (!isAvailable)
