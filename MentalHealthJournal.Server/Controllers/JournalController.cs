@@ -19,13 +19,15 @@ namespace MentalHealthJournal.Server.Controllers
         private readonly IBlobStorageService _blobService;
         private readonly ICosmosDbService _cosmosService;
         private readonly IDataExportService _exportService;
+        private readonly IStreakService _streakService;
 
         public JournalController(ILogger<JournalController> logger, 
             IJournalAnalysisService analysisService, 
             ISpeechToTextService speechService, 
             IBlobStorageService blobService,
             ICosmosDbService cosmosService,
-            IDataExportService exportService)
+            IDataExportService exportService,
+            IStreakService streakService)
         {
             _logger = logger;
             _analysisService = analysisService;
@@ -33,6 +35,7 @@ namespace MentalHealthJournal.Server.Controllers
             _blobService = blobService;
             _cosmosService = cosmosService;
             _exportService = exportService;
+            _streakService = streakService;
             
             _logger.LogInformation("JournalController initialized");
         }
@@ -134,6 +137,18 @@ namespace MentalHealthJournal.Server.Controllers
                 // Save to Cosmos DB
                 await _cosmosService.SaveJournalEntryAsync(journal, cancellationToken);
                 
+                // Update streak asynchronously (don't await to avoid blocking the response)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _streakService.UpdateUserStreakAsync(userId, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error updating streak for user {UserId} after entry creation", userId);
+                    }
+                });
                 _logger.LogInformation("Successfully processed and saved journal entry for user {UserId}", request.UserId);
 
                 return Ok(journal);
@@ -312,6 +327,19 @@ namespace MentalHealthJournal.Server.Controllers
                 await _cosmosService.DeleteJournalEntryAsync(id, userId, cancellationToken);
                 _logger.LogInformation("Successfully deleted entry {EntryId} for user {UserId}", id, userId);
 
+                // Update streak asynchronously (don't await to avoid blocking the response)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _streakService.UpdateUserStreakAsync(userId, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error updating streak for user {UserId} after entry deletion", userId);
+                    }
+                });
+
                 return NoContent(); // 204 No Content is standard for successful DELETE
             }
             catch (InvalidOperationException ex)
@@ -370,6 +398,100 @@ namespace MentalHealthJournal.Server.Controllers
             {
                 _logger.LogError(ex, "Error exporting data for user {UserId}, format: {Format}", userId, format);
                 return StatusCode(500, "An error occurred while exporting your data.");
+            }
+        }
+
+        [HttpGet("calendar")]
+        public async Task<IActionResult> GetCalendarEntries(
+            [FromQuery] DateTime? startDate,
+            [FromQuery] DateTime? endDate,
+            CancellationToken cancellationToken = default)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            // Default to current month if no dates provided
+            var start = startDate ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1).ToUniversalTime();
+            var end = endDate ?? start.AddMonths(1).AddDays(-1).AddHours(23).AddMinutes(59).AddSeconds(59);
+
+            _logger.LogInformation("Calendar request for user {UserId}, startDate: {Start}, endDate: {End}", userId, start, end);
+
+            try
+            {
+                var entries = await _cosmosService.GetEntriesForUserByDateRangeAsync(userId, start, end, cancellationToken);
+                
+                // Group entries by date for easier calendar rendering
+                var groupedEntries = entries
+                    .GroupBy(e => e.Timestamp.Date)
+                    .Select(g => new
+                    {
+                        date = g.Key,
+                        count = g.Count(),
+                        entries = g.Select(e => new
+                        {
+                            id = e.id,
+                            timestamp = e.Timestamp,
+                            sentiment = e.Sentiment,
+                            sentimentScore = e.SentimentScore,
+                            summary = e.Summary
+                        }).ToList()
+                    })
+                    .OrderBy(g => g.date)
+                    .ToList();
+
+                _logger.LogInformation("Retrieved {Count} days with entries for user {UserId}", groupedEntries.Count, userId);
+                
+                return Ok(groupedEntries);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Service error retrieving calendar entries for user {UserId}", userId);
+                return StatusCode(503, "Service temporarily unavailable. Please try again later.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving calendar entries for user {UserId}", userId);
+                return StatusCode(500, "An error occurred while retrieving calendar entries.");
+            }
+        }
+
+        [HttpGet("streak")]
+        public async Task<IActionResult> GetStreak(CancellationToken cancellationToken = default)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            _logger.LogInformation("Streak request for user {UserId}", userId);
+
+            try
+            {
+                var (currentStreak, longestStreak) = await _streakService.CalculateStreaksAsync(userId, cancellationToken);
+                
+                _logger.LogInformation("Retrieved streak for user {UserId}: Current={Current}, Longest={Longest}", 
+                    userId, currentStreak, longestStreak);
+                
+                return Ok(new
+                {
+                    currentStreak,
+                    longestStreak,
+                    calculatedAt = DateTime.UtcNow
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Service error retrieving streak for user {UserId}", userId);
+                return StatusCode(503, "Service temporarily unavailable. Please try again later.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving streak for user {UserId}", userId);
+                return StatusCode(500, "An error occurred while retrieving streak information.");
             }
         }
     }

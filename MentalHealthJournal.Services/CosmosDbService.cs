@@ -146,5 +146,49 @@ namespace MentalHealthJournal.Services
                 throw;
             }
         }
+
+        public async Task<List<JournalEntry>> GetEntriesForUserByDateRangeAsync(string userId, DateTime startDate, DateTime endDate, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation("Retrieving journal entries for user {UserId} between {StartDate} and {EndDate}", userId, startDate, endDate);
+                
+                // Convert to UTC if not already
+                var utcStart = startDate.ToUniversalTime();
+                var utcEnd = endDate.ToUniversalTime();
+                
+                QueryDefinition query = new QueryDefinition(
+                    "SELECT * FROM c WHERE c.userId = @userId AND c.Timestamp >= @startDate AND c.Timestamp <= @endDate ORDER BY c.Timestamp DESC")
+                    .WithParameter("@userId", userId)
+                    .WithParameter("@startDate", utcStart)
+                    .WithParameter("@endDate", utcEnd);
+
+                var results = new List<JournalEntry>();
+
+                var iterator = _container.GetItemQueryIterator<JournalEntry>(query, requestOptions: new QueryRequestOptions
+                {
+                    PartitionKey = new PartitionKey(userId)
+                });
+
+                while (iterator.HasMoreResults)
+                {
+                    var response = await iterator.ReadNextAsync(cancellationToken);
+                    results.AddRange(response);
+                }
+
+                _logger.LogInformation("Retrieved {Count} journal entries for user {UserId} in date range", results.Count, userId);
+                return results;
+            }
+            catch (CosmosException ex)
+            {
+                _logger.LogError(ex, "Cosmos DB error retrieving journal entries for user {UserId} by date range. Status: {Status}", userId, ex.StatusCode);
+                throw new InvalidOperationException($"Failed to retrieve journal entries by date range: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving journal entries for user {UserId} by date range", userId);
+                throw;
+            }
+        }
     }
 }

@@ -593,3 +593,29 @@ body {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(248, 113, 113, 0.3);
 }
+
+/* Calendar tab styling */
+.calendar-tab {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.calendar-tab h2 {
+    text-align: center;
+    color: white;
+    margin-bottom: 2rem;
+    font-size: 2rem;
+}
+
+.calendar-streak-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+@media (max-width: 768px) {
+    .calendar-tab h2 {
+        font-size: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+}

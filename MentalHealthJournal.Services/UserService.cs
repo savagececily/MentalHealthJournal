@@ -1,5 +1,6 @@
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MentalHealthJournal.Models;
 using User = MentalHealthJournal.Models.User;
 
@@ -10,10 +11,11 @@ public class UserService : IUserService
     private readonly Container _usersContainer;
     private readonly ILogger<UserService> _logger;
 
-    public UserService(CosmosClient cosmosClient, ILogger<UserService> logger)
+    public UserService(CosmosClient cosmosClient, ILogger<UserService> logger, IOptions<AppSettings> options)
     {
-        var database = cosmosClient.GetDatabase("MentalHealthJournalDb");
-        _usersContainer = database.GetContainer("Users");
+        var appSettings = options.Value;
+        var database = cosmosClient.GetDatabase(appSettings.CosmosDb.DatabaseName);
+        _usersContainer = database.GetContainer(appSettings.CosmosDb.UserContainer);
         _logger = logger;
     }
 

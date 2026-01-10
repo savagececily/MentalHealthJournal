@@ -7,6 +7,8 @@ import About from './About';
 import { VoiceRecorder } from './components/VoiceRecorder';
 import { DataExport } from './components/DataExport';
 import { EditEntryModal } from './components/EditEntryModal';
+import { CalendarView } from './components/CalendarView';
+import { StreakCounter } from './components/StreakCounter';
 import { journalService } from './services/journalService';
 import './App.css';
 import './Tabs.css';
@@ -46,7 +48,7 @@ function App() {
     const [loadingError, setLoadingError] = useState<string | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [showAbout, setShowAbout] = useState(false);
-    const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights' | 'export'>('new');
+    const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights' | 'calendar' | 'export'>('new');
     const [trends, setTrends] = useState<TrendData | null>(null);
     const [latestEntry, setLatestEntry] = useState<JournalEntry | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -438,6 +440,15 @@ function App() {
                         📊 Insights
                     </button>
                     <button 
+                        className={`tab ${activeTab === 'calendar' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('calendar')}
+                        role="tab"
+                        aria-selected={activeTab === 'calendar'}
+                        aria-controls="calendar-panel"
+                    >
+                        📅 Calendar
+                    </button>
+                    <button 
                         className={`tab ${activeTab === 'export' ? 'active' : ''}`}
                         onClick={() => setActiveTab('export')}
                         role="tab"
@@ -741,6 +752,16 @@ function App() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {activeTab === 'calendar' && token && (
+                    <div className="calendar-tab" role="tabpanel" id="calendar-panel" aria-labelledby="calendar-tab">
+                        <h2>📅 Journal Calendar & Streak</h2>
+                        <div className="calendar-streak-container">
+                            <StreakCounter token={token} />
+                            <CalendarView token={token} />
+                        </div>
                     </div>
                 )}
 

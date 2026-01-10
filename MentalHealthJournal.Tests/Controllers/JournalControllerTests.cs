@@ -19,6 +19,7 @@ namespace MentalHealthJournal.Tests.Controllers
         private readonly Mock<IBlobStorageService> _blobServiceMock;
         private readonly Mock<ICosmosDbService> _cosmosServiceMock;
         private readonly Mock<IDataExportService> _exportServiceMock;
+        private readonly Mock<IStreakService> _streakServiceMock;
         private readonly JournalController _controller;
         private const string TestUserId = "test-user-123";
 
@@ -30,6 +31,7 @@ namespace MentalHealthJournal.Tests.Controllers
             _blobServiceMock = new Mock<IBlobStorageService>();
             _cosmosServiceMock = new Mock<ICosmosDbService>();
             _exportServiceMock = new Mock<IDataExportService>();
+            _streakServiceMock = new Mock<IStreakService>();
 
             _controller = new JournalController(
                 _loggerMock.Object,
@@ -37,7 +39,8 @@ namespace MentalHealthJournal.Tests.Controllers
                 _speechServiceMock.Object,
                 _blobServiceMock.Object,
                 _cosmosServiceMock.Object,
-                _exportServiceMock.Object);
+                _exportServiceMock.Object,
+                _streakServiceMock.Object);
 
             // Setup authenticated user
             SetupAuthenticatedUser(TestUserId);
