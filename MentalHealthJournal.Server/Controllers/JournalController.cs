@@ -327,18 +327,15 @@ namespace MentalHealthJournal.Server.Controllers
                 await _cosmosService.DeleteJournalEntryAsync(id, userId, cancellationToken);
                 _logger.LogInformation("Successfully deleted entry {EntryId} for user {UserId}", id, userId);
 
-                // Update streak asynchronously (don't await to avoid blocking the response)
-                _ = Task.Run(async () =>
+                // Update streak as part of the request, but treat failures as non-fatal
+                try
                 {
-                    try
-                    {
-                        await _streakService.UpdateUserStreakAsync(userId, cancellationToken);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error updating streak for user {UserId} after entry deletion", userId);
-                    }
-                });
+                    await _streakService.UpdateUserStreakAsync(userId, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error updating streak for user {UserId} after entry deletion", userId);
+                }
 
                 return NoContent(); // 204 No Content is standard for successful DELETE
             }
