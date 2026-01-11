@@ -59,7 +59,7 @@ namespace MentalHealthJournal.Server
                 Console.WriteLine("WARNING: Application Insights connection string not found!");
             }
 
-            builder.Services.AddLogging();
+            // builder.Services.AddLogging();
 
             // === Azure OpenAI with Managed Identity ===
             builder.Services.AddSingleton(_ =>

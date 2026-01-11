@@ -7,6 +7,7 @@ using System.Security.Claims;
 using System.Text;
 using MentalHealthJournal.Models;
 using MentalHealthJournal.Services;
+using Microsoft.Extensions.Logging;
 
 namespace MentalHealthJournal.Server.Controllers;
 
