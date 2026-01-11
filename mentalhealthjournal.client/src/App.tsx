@@ -9,9 +9,19 @@ import { DataExport } from './components/DataExport';
 import { EditEntryModal } from './components/EditEntryModal';
 import { CalendarView } from './components/CalendarView';
 import { StreakCounter } from './components/StreakCounter';
+import CrisisAlert from './components/CrisisAlert';
 import { journalService } from './services/journalService';
 import './App.css';
 import './Tabs.css';
+
+interface CrisisResource {
+    name: string;
+    phoneNumber: string;
+    textNumber: string;
+    description: string;
+    url: string;
+    isAvailable24_7: boolean;
+}
 
 interface JournalEntry {
     id: string;
@@ -25,6 +35,9 @@ interface JournalEntry {
     keyPhrases: string[];
     summary: string;
     affirmation: string;
+    isCrisisDetected?: boolean;
+    crisisReason?: string;
+    crisisResources?: CrisisResource[];
 }
 
 interface TrendData {
@@ -57,6 +70,8 @@ function App() {
     const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
     const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
     const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+    const [showCrisisAlert, setShowCrisisAlert] = useState(false);
+    const [crisisData, setCrisisData] = useState<{ reason?: string; resources: CrisisResource[] }>({ resources: [] });
 
     // Clean up blob URL when audioBlob changes or component unmounts
     useEffect(() => {
@@ -302,7 +317,21 @@ function App() {
                 setEntries([newEntry, ...entries]);
                 setLatestEntry(newEntry);
                 setJournalText('');
-                setAudioBlob(null);
+                // Check for crisis detection
+                if (newEntry.isCrisisDetected && newEntry.crisisResources) {
+                    setCrisisData({
+                        reason: newEntry.crisisReason,
+                        resources: newEntry.crisisResources
+                    });
+                    setShowCrisisAlert(true);
+                    appInsights.trackEvent({ 
+                        name: 'CrisisDetected',
+                        properties: { 
+                            entryId: newEntry.id,
+                            reason: newEntry.crisisReason
+                        }
+                    });
+                }
                 
                 const duration = Date.now() - startTime;
                 appInsights.trackEvent({ 
@@ -312,7 +341,8 @@ function App() {
                         sentimentScore: newEntry.sentimentScore,
                         textLength: textToSubmit.length,
                         duration,
-                        isVoiceEntry
+                        isVoiceEntry,
+                        isCrisisDetected: newEntry.isCrisisDetected || false
                     } 
                 });
             } else {
@@ -394,6 +424,57 @@ function App() {
                         <p>Track your thoughts, understand your emotions</p>
                     </div>
                     <div className="header-actions">
+                        <button 
+                            className="crisis-help-button" 
+                            onClick={() => {
+                                setCrisisData({ resources: [
+                                    {
+                                        name: "988 Suicide & Crisis Lifeline",
+                                        phoneNumber: "988",
+                                        textNumber: "988",
+                                        description: "Free, confidential support 24/7 for people in distress, prevention and crisis resources.",
+                                        url: "https://988lifeline.org",
+                                        isAvailable24_7: true
+                                    },
+                                    {
+                                        name: "Crisis Text Line",
+                                        phoneNumber: "",
+                                        textNumber: "741741",
+                                        description: "Free, 24/7 support via text. Text HOME to 741741.",
+                                        url: "https://www.crisistextline.org",
+                                        isAvailable24_7: true
+                                    },
+                                    {
+                                        name: "SAMHSA National Helpline",
+                                        phoneNumber: "1-800-662-4357",
+                                        textNumber: "",
+                                        description: "Free, confidential, 24/7 treatment referral and information service.",
+                                        url: "https://www.samhsa.gov/find-help/national-helpline",
+                                        isAvailable24_7: true
+                                    },
+                                    {
+                                        name: "Veterans Crisis Line",
+                                        phoneNumber: "988 (Press 1)",
+                                        textNumber: "838255",
+                                        description: "Support for Veterans, service members, National Guard, Reserve, and their families.",
+                                        url: "https://www.veteranscrisisline.net",
+                                        isAvailable24_7: true
+                                    },
+                                    {
+                                        name: "The Trevor Project (LGBTQ Youth)",
+                                        phoneNumber: "1-866-488-7386",
+                                        textNumber: "678678",
+                                        description: "Crisis support for LGBTQ young people under 25.",
+                                        url: "https://www.thetrevorproject.org",
+                                        isAvailable24_7: true
+                                    }
+                                ]});
+                                setShowCrisisAlert(true);
+                            }}
+                            aria-label="Access crisis support resources"
+                        >
+                            🆘 Need Help Now?
+                        </button>
                         <div className="user-info">
                             {user?.profilePictureUrl && (
                                 <img src={user.profilePictureUrl} alt={`${user.name}'s profile picture`} className="user-avatar" />
@@ -782,6 +863,12 @@ function App() {
                     onClose={() => setEditingEntry(null)}
                 />
             )}
+            <CrisisAlert
+                isVisible={showCrisisAlert}
+                reason={crisisData.reason}
+                resources={crisisData.resources}
+                onClose={() => setShowCrisisAlert(false)}
+            />
         </div>
     );
 }
