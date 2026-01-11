@@ -10,6 +10,9 @@ import { EditEntryModal } from './components/EditEntryModal';
 import { CalendarView } from './components/CalendarView';
 import { StreakCounter } from './components/StreakCounter';
 import CrisisAlert from './components/CrisisAlert';
+import { SentimentTimeline } from './components/SentimentTimeline';
+import { KeyPhrasesCloud } from './components/KeyPhrasesCloud';
+import { TimePatterns } from './components/TimePatterns';
 import { journalService } from './services/journalService';
 import './App.css';
 import './Tabs.css';
@@ -775,6 +778,22 @@ function App() {
                             </div>
                         ) : (
                             <div className="insights-grid">
+                                {/* Sentiment Timeline */}
+                                <div className="insight-full-width">
+                                    <SentimentTimeline entries={entries} />
+                                </div>
+
+                                {/* Key Phrases Cloud */}
+                                <div className="insight-full-width">
+                                    <KeyPhrasesCloud entries={entries} />
+                                </div>
+
+                                {/* Time Patterns */}
+                                <div className="insight-full-width">
+                                    <TimePatterns entries={entries} />
+                                </div>
+
+                                {/* Existing Statistics */}
                                 <div className="insight-card-large">
                                     <h3>📊 Overall Statistics</h3>
                                     <div className="stats-grid">
