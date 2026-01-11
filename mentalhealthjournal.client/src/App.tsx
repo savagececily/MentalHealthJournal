@@ -432,50 +432,21 @@ function App() {
                     <div className="header-actions">
                         <button 
                             className="crisis-help-button" 
-                            onClick={() => {
-                                setCrisisData({ resources: [
-                                    {
-                                        name: "988 Suicide & Crisis Lifeline",
-                                        phoneNumber: "988",
-                                        textNumber: "988",
-                                        description: "Free, confidential support 24/7 for people in distress, prevention and crisis resources.",
-                                        url: "https://988lifeline.org",
-                                        isAvailable24_7: true
-                                    },
-                                    {
-                                        name: "Crisis Text Line",
-                                        phoneNumber: "",
-                                        textNumber: "741741",
-                                        description: "Free, 24/7 support via text. Text HOME to 741741.",
-                                        url: "https://www.crisistextline.org",
-                                        isAvailable24_7: true
-                                    },
-                                    {
-                                        name: "SAMHSA National Helpline",
-                                        phoneNumber: "1-800-662-4357",
-                                        textNumber: "",
-                                        description: "Free, confidential, 24/7 treatment referral and information service.",
-                                        url: "https://www.samhsa.gov/find-help/national-helpline",
-                                        isAvailable24_7: true
-                                    },
-                                    {
-                                        name: "Veterans Crisis Line",
-                                        phoneNumber: "988",
-                                        textNumber: "838255",
-                                        description: "Call 988 (Press 1). Support for Veterans, service members, National Guard, Reserve, and their families.",
-                                        url: "https://www.veteranscrisisline.net",
-                                        isAvailable24_7: true
-                                    },
-                                    {
-                                        name: "The Trevor Project (LGBTQ Youth)",
-                                        phoneNumber: "1-866-488-7386",
-                                        textNumber: "678678",
-                                        description: "Crisis support for LGBTQ young people under 25.",
-                                        url: "https://www.thetrevorproject.org",
-                                        isAvailable24_7: true
+                            onClick={async () => {
+                                try {
+                                    const response = await fetch('/api/crisis-resources');
+                                    if (!response.ok) {
+                                        throw new Error(`Failed to load crisis resources: ${response.status}`);
                                     }
-                                ]});
-                                setShowCrisisAlert(true);
+                                    const resources = await response.json();
+                                    setCrisisData({ resources });
+                                } catch (error) {
+                                    console.error('Error fetching crisis resources', error);
+                                    // Fallback: preserve existing crisis data or default to an empty list
+                                    setCrisisData(prev => prev ?? { resources: [] });
+                                } finally {
+                                    setShowCrisisAlert(true);
+                                }
                             }}
                             aria-label="Access crisis support resources"
                         >
