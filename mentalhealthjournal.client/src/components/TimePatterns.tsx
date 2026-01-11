@@ -100,7 +100,7 @@ export const TimePatterns: React.FC<TimePatternsProps> = ({ entries }) => {
                             <div className="insight-title">Best Time</div>
                             <div className="insight-value">
                                 {bestTime.hour === 0 ? '12' : bestTime.hour > 12 ? bestTime.hour - 12 : bestTime.hour}
-                                {bestTime.hour >= 12 ? 'PM' : 'AM'}
+                                {bestTime.hour >= 12 ? ' PM' : ' AM'}
                             </div>
                             <div className="insight-label">{getTimeOfDayLabel(bestTime.hour)}</div>
                         </div>
@@ -142,7 +142,7 @@ export const TimePatterns: React.FC<TimePatternsProps> = ({ entries }) => {
                                 </div>
                                 {index % 3 === 0 && (
                                     <div className="hour-label">
-                                        {data.hour === 0 ? '12AM' : data.hour < 12 ? `${data.hour}AM` : data.hour === 12 ? '12PM' : `${data.hour - 12}PM`}
+                                        {data.hour === 0 ? '12 AM' : data.hour < 12 ? `${data.hour} AM` : data.hour === 12 ? '12 PM' : `${data.hour - 12} PM`}
                                     </div>
                                 )}
                             </div>
