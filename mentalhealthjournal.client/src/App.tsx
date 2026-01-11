@@ -460,9 +460,9 @@ function App() {
                                     },
                                     {
                                         name: "Veterans Crisis Line",
-                                        phoneNumber: "988 (Press 1)",
+                                        phoneNumber: "988",
                                         textNumber: "838255",
-                                        description: "Support for Veterans, service members, National Guard, Reserve, and their families.",
+                                        description: "Call 988 (Press 1). Support for Veterans, service members, National Guard, Reserve, and their families.",
                                         url: "https://www.veteranscrisisline.net",
                                         isAvailable24_7: true
                                     },
