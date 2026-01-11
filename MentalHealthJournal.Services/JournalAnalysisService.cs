@@ -8,6 +8,7 @@ using System.ClientModel;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Polly;
 
 namespace MentalHealthJournal.Services
 {
@@ -17,6 +18,8 @@ namespace MentalHealthJournal.Services
         private readonly TextAnalyticsClient _textClient;
         private readonly AzureOpenAIClient _openAIClient;
         private readonly string _openAIDeployment;
+        private readonly ResiliencePipeline _cognitiveServicesRetryPipeline;
+        private readonly ResiliencePipeline _openAIRetryPipeline;
 
         public JournalAnalysisService(ILogger<JournalAnalysisService> logger,
             TextAnalyticsClient textClient,
@@ -27,6 +30,8 @@ namespace MentalHealthJournal.Services
             _textClient = textClient;
             _openAIClient = openAIClient;
             _openAIDeployment = configuration.Value.AzureOpenAI.DeploymentName ?? throw new ArgumentNullException("AzureOpenAI:DeploymentName");
+            _cognitiveServicesRetryPipeline = ResiliencePolicies.CreateCognitiveServicesRetryPipeline(_logger);
+            _openAIRetryPipeline = ResiliencePolicies.CreateOpenAIRetryPipeline(_logger);
         }
 
         public async Task<JournalAnalysisResult> AnalyzeAsync(string text, CancellationToken cancellationToken = default)
@@ -40,17 +45,26 @@ namespace MentalHealthJournal.Services
 
                 _logger.LogInformation("Starting analysis for text with length: {TextLength}", text.Length);
 
-                // Perform sentiment analysis
-                Response<DocumentSentiment> sentimentResult = await _textClient.AnalyzeSentimentAsync(text, cancellationToken: cancellationToken);
+                // Perform sentiment analysis with retry policy
+                Response<DocumentSentiment> sentimentResult = await _cognitiveServicesRetryPipeline.ExecuteAsync(
+                    async token => await _textClient.AnalyzeSentimentAsync(text, cancellationToken: token),
+                    cancellationToken
+                );
                 
-                // Extract key phrases
-                Response<KeyPhraseCollection> keyPhrasesResult = await _textClient.ExtractKeyPhrasesAsync(text, cancellationToken: cancellationToken);
+                // Extract key phrases with retry policy
+                Response<KeyPhraseCollection> keyPhrasesResult = await _cognitiveServicesRetryPipeline.ExecuteAsync(
+                    async token => await _textClient.ExtractKeyPhrasesAsync(text, cancellationToken: token),
+                    cancellationToken
+                );
 
                 // Generate summary based on sentiment
                 string summary = GenerateSummary(sentimentResult.Value);
                 
-                // Generate personalized affirmation using Azure OpenAI
+                // Generate personalized affirmation using Azure OpenAI with retry policy
                 string affirmation = await GenerateAffirmationAsync(text, cancellationToken);
+
+                // Check for crisis indicators with retry policy
+                var (isCrisis, crisisReason) = await DetectCrisisAsync(text, cancellationToken);
 
                 var result = new JournalAnalysisResult
                 {
@@ -58,11 +72,14 @@ namespace MentalHealthJournal.Services
                     SentimentScore = sentimentResult.Value.ConfidenceScores.Positive,
                     KeyPhrases = keyPhrasesResult.Value.ToList(),
                     Summary = summary,
-                    Affirmation = affirmation
+                    Affirmation = affirmation,
+                    IsCrisisDetected = isCrisis,
+                    CrisisReason = crisisReason,
+                    CrisisResources = isCrisis ? CrisisResources.GetDefaultResources() : new List<CrisisResource>()
                 };
 
-                _logger.LogInformation("Analysis completed successfully. Sentiment: {Sentiment}, KeyPhrases count: {KeyPhrasesCount}", 
-                    result.Sentiment, result.KeyPhrases.Count);
+                _logger.LogInformation("Analysis completed successfully. Sentiment: {Sentiment}, KeyPhrases count: {KeyPhrasesCount}, Crisis detected: {IsCrisis}", 
+                    result.Sentiment, result.KeyPhrases.Count, result.IsCrisisDetected);
 
                 return result;
             }
@@ -100,7 +117,10 @@ Journal entry: ""{journalText}""";
 
                 _logger.LogInformation("Generating affirmation for journal entry");
 
-                ClientResult<ChatCompletion> completions = await chatClient.CompleteChatAsync(chatMessages, requestOptions, cancellationToken: cancellationToken);
+                ClientResult<ChatCompletion> completions = await _openAIRetryPipeline.ExecuteAsync(
+                    async token => await chatClient.CompleteChatAsync(chatMessages, requestOptions, cancellationToken: token),
+                    cancellationToken
+                );
 
                 string affirmation = completions.Value.Content[0].Text.Trim();
                 _logger.LogInformation("Generated affirmation successfully");
@@ -112,6 +132,81 @@ Journal entry: ""{journalText}""";
                 _logger.LogError(ex, "Error generating affirmation");
                 // Return a fallback affirmation if AI generation fails
                 return "You are valued, your feelings are valid, and you have the strength to navigate through this moment.";
+            }
+        }
+
+        private async Task<(bool isCrisis, string? reason)> DetectCrisisAsync(string journalText, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                string prompt = $@"Analyze this journal entry for signs of immediate crisis or serious mental health concerns.
+Specifically look for indicators of:
+- Suicidal ideation or self-harm intentions
+- Plans or methods to harm oneself or others
+- Severe hopelessness or despair with no perceived way out
+- Recent suicide attempts or severe self-harm
+- Acute trauma or abuse
+
+Do NOT flag general sadness, stress, anxiety, or normal difficult emotions.
+
+Respond in JSON format:
+{{
+  ""isCrisis"": true or false,
+  ""reason"": ""brief explanation if crisis detected, or null if not""
+}}
+
+Journal entry: ""{journalText}""";
+
+                List<ChatMessage> chatMessages = new List<ChatMessage>()
+                {
+                    new SystemChatMessage("You are a mental health crisis detection system. Your role is to identify immediate safety concerns that require professional intervention. Be sensitive but accurate. Only flag genuine crises, not everyday struggles."),
+                    new UserChatMessage(prompt),
+                };
+
+                ChatCompletionOptions requestOptions = new ChatCompletionOptions()
+                {
+                    MaxOutputTokenCount = 150,
+                    Temperature = 0.3f, // Lower temperature for more consistent detection
+                    TopP = 1.0f,
+                    ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat()
+                };
+
+                ChatClient chatClient = _openAIClient.GetChatClient(_openAIDeployment);
+
+                _logger.LogInformation("Performing crisis detection on journal entry");
+
+                ClientResult<ChatCompletion> completions = await _openAIRetryPipeline.ExecuteAsync(
+                    async token => await chatClient.CompleteChatAsync(chatMessages, requestOptions, cancellationToken: token),
+                    cancellationToken
+                );
+
+                string response = completions.Value.Content[0].Text.Trim();
+                
+                // Parse the JSON response
+                using var jsonDoc = System.Text.Json.JsonDocument.Parse(response);
+                var root = jsonDoc.RootElement;
+                
+                bool isCrisis = root.GetProperty("isCrisis").GetBoolean();
+                string? reason = root.TryGetProperty("reason", out var reasonElement) && reasonElement.ValueKind != System.Text.Json.JsonValueKind.Null
+                    ? reasonElement.GetString()
+                    : null;
+
+                if (isCrisis)
+                {
+                    _logger.LogWarning("Crisis detected in journal entry. Reason: {Reason}", reason);
+                }
+                else
+                {
+                    _logger.LogInformation("No crisis indicators detected");
+                }
+                
+                return (isCrisis, reason);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error performing crisis detection");
+                // In case of error, err on the side of caution but don't false alarm
+                return (false, null);
             }
         }
 

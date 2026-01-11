@@ -1,0 +1,262 @@
+.crisis-alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.crisis-alert-modal {
+    background: white;
+    border-radius: 16px;
+    max-width: 700px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.crisis-alert-header {
+    background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+    color: white;
+    padding: 24px;
+    border-radius: 16px 16px 0 0;
+    text-align: center;
+}
+
+.crisis-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.crisis-alert-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.crisis-alert-content {
+    padding: 24px;
+}
+
+.crisis-reason {
+    background: #fff3e0;
+    border-left: 4px solid #f57c00;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.crisis-reason p {
+    margin: 0;
+    color: #e65100;
+}
+
+.crisis-message {
+    background: #e3f2fd;
+    border-left: 4px solid #1976d2;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    border-radius: 4px;
+}
+
+.crisis-message p {
+    margin: 0;
+    color: #0d47a1;
+    line-height: 1.6;
+}
+
+.crisis-resources {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.crisis-resource-card {
+    background: #f5f5f5;
+    border-radius: 12px;
+    padding: 16px;
+    border: 2px solid #e0e0e0;
+    transition: all 0.2s ease;
+}
+
+.crisis-resource-card:hover {
+    border-color: #1976d2;
+    box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
+}
+
+.resource-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.resource-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #212121;
+}
+
+.badge-24-7 {
+    background: #4caf50;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.resource-description {
+    color: #616161;
+    margin: 8px 0 12px 0;
+    line-height: 1.5;
+}
+
+.resource-contact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.contact-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.contact-button.phone {
+    background: #4caf50;
+    color: white;
+}
+
+.contact-button.phone:hover {
+    background: #388e3c;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.contact-button.text {
+    background: #2196f3;
+    color: white;
+}
+
+.contact-button.text:hover {
+    background: #1976d2;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.contact-button.web {
+    background: #9c27b0;
+    color: white;
+}
+
+.contact-button.web:hover {
+    background: #7b1fa2;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(156, 39, 176, 0.3);
+}
+
+.crisis-safety-note {
+    background: #ffebee;
+    border-left: 4px solid #e53935;
+    padding: 12px 16px;
+    border-radius: 4px;
+}
+
+.crisis-safety-note p {
+    margin: 0;
+    color: #c62828;
+    font-weight: 500;
+}
+
+.crisis-alert-footer {
+    padding: 16px 24px;
+    background: #fafafa;
+    border-top: 1px solid #e0e0e0;
+    border-radius: 0 0 16px 16px;
+    display: flex;
+    justify-content: center;
+}
+
+.close-button {
+    background: #616161;
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.close-button:hover {
+    background: #424242;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+    .crisis-alert-modal {
+        max-height: 95vh;
+        margin: 10px;
+    }
+
+    .crisis-alert-header h2 {
+        font-size: 20px;
+    }
+
+    .crisis-icon {
+        font-size: 36px;
+    }
+
+    .resource-contact {
+        flex-direction: column;
+    }
+
+    .contact-button {
+        width: 100%;
+        justify-content: center;
+    }
+}

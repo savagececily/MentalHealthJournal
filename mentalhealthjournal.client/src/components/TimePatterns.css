@@ -1,0 +1,277 @@
+.time-patterns {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.time-patterns-empty {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    color: #757575;
+}
+
+.patterns-header {
+    margin-bottom: 24px;
+}
+
+.patterns-header h3 {
+    margin: 0 0 8px 0;
+    color: #212121;
+    font-size: 20px;
+}
+
+.patterns-subtitle {
+    margin: 0;
+    color: #757575;
+    font-size: 14px;
+}
+
+.patterns-insights {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.insight-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px;
+    border-radius: 12px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.insight-icon {
+    font-size: 36px;
+}
+
+.insight-content {
+    flex: 1;
+}
+
+.insight-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.9;
+    margin-bottom: 4px;
+}
+
+.insight-value {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.insight-label {
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.pattern-section {
+    margin-bottom: 32px;
+}
+
+.pattern-section:last-child {
+    margin-bottom: 0;
+}
+
+.pattern-section h4 {
+    margin: 0 0 16px 0;
+    color: #424242;
+    font-size: 16px;
+}
+
+.hourly-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: 180px;
+    background: #fafafa;
+    border-radius: 8px;
+    padding: 16px 8px 32px 8px;
+    gap: 2px;
+}
+
+.hour-bar-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    position: relative;
+}
+
+.hour-bar {
+    width: 100%;
+    background: #2196f3;
+    border-radius: 4px 4px 0 0;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 4px;
+    min-height: 4px;
+}
+
+.hour-bar:hover {
+    opacity: 0.8;
+    transform: translateY(-2px);
+}
+
+.bar-count {
+    font-size: 10px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.hour-label {
+    position: absolute;
+    bottom: -24px;
+    font-size: 10px;
+    color: #757575;
+    white-space: nowrap;
+}
+
+.day-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.day-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.day-label {
+    width: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #424242;
+}
+
+.day-bar-wrapper {
+    flex: 1;
+    background: #f5f5f5;
+    border-radius: 8px;
+    height: 36px;
+    overflow: hidden;
+}
+
+.day-bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.day-bar:hover {
+    transform: scaleX(1.02);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.day-count {
+    font-size: 14px;
+    font-weight: 700;
+    color: #212121;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+@media (max-width: 768px) {
+    .time-patterns {
+        padding: 16px;
+    }
+
+    .patterns-header h3 {
+        font-size: 18px;
+    }
+
+    .patterns-subtitle {
+        font-size: 12px;
+    }
+
+    .patterns-insights {
+        flex-direction: column;
+    }
+
+    .insight-box {
+        padding: 16px;
+    }
+
+    .insight-icon {
+        font-size: 28px;
+    }
+
+    .insight-value {
+        font-size: 20px;
+    }
+
+    .pattern-section h4 {
+        font-size: 14px;
+    }
+
+    .hourly-chart {
+        height: 150px;
+        padding: 12px 4px 28px 4px;
+    }
+
+    .bar-count {
+        font-size: 8px;
+    }
+
+    .hour-label {
+        font-size: 8px;
+        bottom: -20px;
+    }
+
+    .day-label {
+        width: 40px;
+        font-size: 12px;
+    }
+
+    .day-bar-wrapper {
+        height: 32px;
+    }
+
+    .day-count {
+        font-size: 12px;
+    }
+}
+
+/* Animations */
+@keyframes barGrow {
+    from {
+        height: 0;
+    }
+}
+
+.hour-bar {
+    animation: barGrow 0.5s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: scaleX(0);
+        transform-origin: left;
+    }
+    to {
+        transform: scaleX(1);
+    }
+}
+
+.day-bar {
+    animation: slideIn 0.5s ease-out;
+}

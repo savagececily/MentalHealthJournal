@@ -27,6 +27,27 @@ body {
     border-width: 0;
 }
 
+/* Loading placeholders for lazy-loaded components */
+.loading-placeholder {
+    background: white;
+    border-radius: 12px;
+    padding: 60px 20px;
+    text-align: center;
+    color: #757575;
+    font-size: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
 .app-container {
     min-height: 100vh;
     padding: 2rem;
@@ -50,6 +71,40 @@ body {
     display: flex;
     align-items: center;
     gap: 1rem;
+}
+
+.crisis-help-button {
+    background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+    animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% {
+        box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+    }
+    50% {
+        box-shadow: 0 4px 16px rgba(229, 57, 53, 0.7);
+    }
+}
+
+.crisis-help-button:hover {
+    background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(229, 57, 53, 0.5);
+}
+
+.crisis-help-button:active {
+    transform: translateY(0);
 }
 
 .user-info {

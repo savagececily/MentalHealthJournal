@@ -8,6 +8,11 @@ using Xunit;
 
 namespace MentalHealthJournal.Tests.Services
 {
+    /// <summary>
+    /// Unit tests for JournalAnalysisService
+    /// Note: These tests focus on input validation.
+    /// Testing actual Azure AI service calls requires integration tests with test credentials.
+    /// </summary>
     public class JournalAnalysisServiceTests
     {
         private readonly Mock<ILogger<JournalAnalysisService>> _loggerMock;

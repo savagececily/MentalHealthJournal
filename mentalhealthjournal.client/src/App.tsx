@@ -1,17 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useAppInsightsContext } from '@microsoft/applicationinsights-react-js';
 import { useAuth } from './hooks/useAuth';
 import Login from './components/Login';
 import UsernameSetup from './components/UsernameSetup';
 import About from './About';
 import { VoiceRecorder } from './components/VoiceRecorder';
-import { DataExport } from './components/DataExport';
 import { EditEntryModal } from './components/EditEntryModal';
-import { CalendarView } from './components/CalendarView';
-import { StreakCounter } from './components/StreakCounter';
+import CrisisAlert from './components/CrisisAlert';
 import { journalService } from './services/journalService';
 import './App.css';
 import './Tabs.css';
+
+// Lazy load heavy components
+const DataExport = lazy(() => import('./components/DataExport').then(module => ({ default: module.DataExport })));
+const CalendarView = lazy(() => import('./components/CalendarView').then(module => ({ default: module.CalendarView })));
+const StreakCounter = lazy(() => import('./components/StreakCounter').then(module => ({ default: module.StreakCounter })));
+const SentimentTimeline = lazy(() => import('./components/SentimentTimeline').then(module => ({ default: module.SentimentTimeline })));
+const KeyPhrasesCloud = lazy(() => import('./components/KeyPhrasesCloud').then(module => ({ default: module.KeyPhrasesCloud })));
+const TimePatterns = lazy(() => import('./components/TimePatterns').then(module => ({ default: module.TimePatterns })));
+
+interface CrisisResource {
+    name: string;
+    phoneNumber: string;
+    textNumber: string;
+    description: string;
+    url: string;
+    isAvailable24_7: boolean;
+}
 
 interface JournalEntry {
     id: string;
@@ -25,6 +40,9 @@ interface JournalEntry {
     keyPhrases: string[];
     summary: string;
     affirmation: string;
+    isCrisisDetected?: boolean;
+    crisisReason?: string;
+    crisisResources?: CrisisResource[];
 }
 
 interface TrendData {
@@ -57,6 +75,8 @@ function App() {
     const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
     const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
     const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+    const [showCrisisAlert, setShowCrisisAlert] = useState(false);
+    const [crisisData, setCrisisData] = useState<{ reason?: string; resources: CrisisResource[] }>({ resources: [] });
 
     // Clean up blob URL when audioBlob changes or component unmounts
     useEffect(() => {
@@ -303,6 +323,21 @@ function App() {
                 setLatestEntry(newEntry);
                 setJournalText('');
                 setAudioBlob(null);
+                // Check for crisis detection
+                if (newEntry.isCrisisDetected && newEntry.crisisResources) {
+                    setCrisisData({
+                        reason: newEntry.crisisReason,
+                        resources: newEntry.crisisResources
+                    });
+                    setShowCrisisAlert(true);
+                    appInsights.trackEvent({ 
+                        name: 'CrisisDetected',
+                        properties: { 
+                            entryId: newEntry.id,
+                            reason: newEntry.crisisReason
+                        }
+                    });
+                }
                 
                 const duration = Date.now() - startTime;
                 appInsights.trackEvent({ 
@@ -312,7 +347,8 @@ function App() {
                         sentimentScore: newEntry.sentimentScore,
                         textLength: textToSubmit.length,
                         duration,
-                        isVoiceEntry
+                        isVoiceEntry,
+                        isCrisisDetected: newEntry.isCrisisDetected || false
                     } 
                 });
             } else {
@@ -394,6 +430,28 @@ function App() {
                         <p>Track your thoughts, understand your emotions</p>
                     </div>
                     <div className="header-actions">
+                        <button 
+                            className="crisis-help-button" 
+                            onClick={async () => {
+                                try {
+                                    const response = await fetch('/api/crisis-resources');
+                                    if (!response.ok) {
+                                        throw new Error(`Failed to load crisis resources: ${response.status}`);
+                                    }
+                                    const resources = await response.json();
+                                    setCrisisData({ resources });
+                                } catch (error) {
+                                    console.error('Error fetching crisis resources', error);
+                                    // Fallback: preserve existing crisis data or default to an empty list
+                                    setCrisisData(prev => prev ?? { resources: [] });
+                                } finally {
+                                    setShowCrisisAlert(true);
+                                }
+                            }}
+                            aria-label="Access crisis support resources"
+                        >
+                            🆘 Need Help Now?
+                        </button>
                         <div className="user-info">
                             {user?.profilePictureUrl && (
                                 <img src={user.profilePictureUrl} alt={`${user.name}'s profile picture`} className="user-avatar" />
@@ -694,6 +752,28 @@ function App() {
                             </div>
                         ) : (
                             <div className="insights-grid">
+                                {/* Sentiment Timeline */}
+                                <div className="insight-full-width">
+                                    <Suspense fallback={<div className="loading-placeholder">Loading timeline...</div>}>
+                                        <SentimentTimeline entries={entries} />
+                                    </Suspense>
+                                </div>
+
+                                {/* Key Phrases Cloud */}
+                                <div className="insight-full-width">
+                                    <Suspense fallback={<div className="loading-placeholder">Loading themes...</div>}>
+                                        <KeyPhrasesCloud entries={entries} />
+                                    </Suspense>
+                                </div>
+
+                                {/* Time Patterns */}
+                                <div className="insight-full-width">
+                                    <Suspense fallback={<div className="loading-placeholder">Loading patterns...</div>}>
+                                        <TimePatterns entries={entries} />
+                                    </Suspense>
+                                </div>
+
+                                {/* Existing Statistics */}
                                 <div className="insight-card-large">
                                     <h3>📊 Overall Statistics</h3>
                                     <div className="stats-grid">
@@ -758,16 +838,20 @@ function App() {
                 {activeTab === 'calendar' && token && (
                     <div className="calendar-tab" role="tabpanel" id="calendar-panel" aria-labelledby="calendar-tab">
                         <h2>📅 Journal Calendar & Streak</h2>
-                        <div className="calendar-streak-container">
-                            <StreakCounter token={token} />
-                            <CalendarView token={token} />
-                        </div>
+                        <Suspense fallback={<div className="loading-placeholder">Loading calendar...</div>}>
+                            <div className="calendar-streak-container">
+                                <StreakCounter token={token} />
+                                <CalendarView token={token} />
+                            </div>
+                        </Suspense>
                     </div>
                 )}
 
                 {activeTab === 'export' && token && (
                     <div className="export-tab">
-                        <DataExport token={token} />
+                        <Suspense fallback={<div className="loading-placeholder">Loading export...</div>}>
+                            <DataExport token={token} />
+                        </Suspense>
                     </div>
                 )}
             </div>
@@ -782,6 +866,12 @@ function App() {
                     onClose={() => setEditingEntry(null)}
                 />
             )}
+            <CrisisAlert
+                isVisible={showCrisisAlert}
+                reason={crisisData.reason}
+                resources={crisisData.resources}
+                onClose={() => setShowCrisisAlert(false)}
+            />
         </div>
     );
 }

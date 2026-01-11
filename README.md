@@ -175,12 +175,16 @@ dotnet publish -c Release
 
 ## 📚 Documentation
 
-- [Feature Summary](FEATURE_SUMMARY.md) - Complete list of features and capabilities
-- [Azure Deployment Guide](AZURE_DEPLOYMENT.md) - Step-by-step deployment instructions
-- [Manual Deployment](DEPLOY_MANUAL.md) - Alternative deployment methods
-- [Voice Recording Feature](VOICE_RECORDING_FEATURE.md) - Voice recording implementation details
-- [Integration Reference](INTEGRATION_REFERENCE.md) - API integration guide
-- [Testing Guide](TESTING_GUIDE.md) - Testing documentation
+### Core Documentation
+- [Azure Deployment Guide](AZURE_DEPLOYMENT.md) - Comprehensive deployment instructions for Azure
+- [Testing Guide](TESTING_GUIDE.md) - How to test the application end-to-end
+- [Unit Test Summary](UNIT_TEST_SUMMARY.md) - Current unit test coverage and results
+- [Performance Optimizations](PERFORMANCE_OPTIMIZATIONS.md) - Caching, retry policies, and lazy loading
+
+### Feature Documentation
+- [Crisis Support Feature](CRISIS_SUPPORT_FEATURE.md) - AI-powered crisis detection and resources
+- [Data Visualization Feature](DATA_VISUALIZATION_FEATURE.md) - Sentiment timeline, word cloud, and patterns
+- [Voice Recording Feature](VOICE_RECORDING_FEATURE.md) - Speech-to-text implementation details
 
 ## 🔒 Security
 
