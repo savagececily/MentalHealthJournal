@@ -27,7 +27,12 @@ export const SentimentTimeline: React.FC<SentimentTimelineProps> = ({ entries })
         const groupedByDate = new Map<string, { scores: number[]; sentiments: string[] }>();
 
         entries.forEach(entry => {
-            const date = new Date(entry.timestamp).toISOString().split('T')[0];
+            const dateObj = new Date(entry.timestamp);
+            if (isNaN(dateObj.getTime())) {
+                // Skip entries with invalid or malformed timestamps
+                return;
+            }
+            const date = dateObj.toISOString().split('T')[0];
             if (!groupedByDate.has(date)) {
                 groupedByDate.set(date, { scores: [], sentiments: [] });
             }
