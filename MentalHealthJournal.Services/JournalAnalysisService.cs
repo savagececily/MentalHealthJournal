@@ -8,6 +8,7 @@ using System.ClientModel;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Polly;
 
 namespace MentalHealthJournal.Services
 {
@@ -17,6 +18,8 @@ namespace MentalHealthJournal.Services
         private readonly TextAnalyticsClient _textClient;
         private readonly AzureOpenAIClient _openAIClient;
         private readonly string _openAIDeployment;
+        private readonly ResiliencePipeline _cognitiveServicesRetryPipeline;
+        private readonly ResiliencePipeline _openAIRetryPipeline;
 
         public JournalAnalysisService(ILogger<JournalAnalysisService> logger,
             TextAnalyticsClient textClient,
@@ -27,6 +30,8 @@ namespace MentalHealthJournal.Services
             _textClient = textClient;
             _openAIClient = openAIClient;
             _openAIDeployment = configuration.Value.AzureOpenAI.DeploymentName ?? throw new ArgumentNullException("AzureOpenAI:DeploymentName");
+            _cognitiveServicesRetryPipeline = ResiliencePolicies.CreateCognitiveServicesRetryPipeline(_logger);
+            _openAIRetryPipeline = ResiliencePolicies.CreateOpenAIRetryPipeline(_logger);
         }
 
         public async Task<JournalAnalysisResult> AnalyzeAsync(string text, CancellationToken cancellationToken = default)
@@ -40,19 +45,25 @@ namespace MentalHealthJournal.Services
 
                 _logger.LogInformation("Starting analysis for text with length: {TextLength}", text.Length);
 
-                // Perform sentiment analysis
-                Response<DocumentSentiment> sentimentResult = await _textClient.AnalyzeSentimentAsync(text, cancellationToken: cancellationToken);
+                // Perform sentiment analysis with retry policy
+                Response<DocumentSentiment> sentimentResult = await _cognitiveServicesRetryPipeline.ExecuteAsync(
+                    async token => await _textClient.AnalyzeSentimentAsync(text, cancellationToken: token),
+                    cancellationToken
+                );
                 
-                // Extract key phrases
-                Response<KeyPhraseCollection> keyPhrasesResult = await _textClient.ExtractKeyPhrasesAsync(text, cancellationToken: cancellationToken);
+                // Extract key phrases with retry policy
+                Response<KeyPhraseCollection> keyPhrasesResult = await _cognitiveServicesRetryPipeline.ExecuteAsync(
+                    async token => await _textClient.ExtractKeyPhrasesAsync(text, cancellationToken: token),
+                    cancellationToken
+                );
 
                 // Generate summary based on sentiment
                 string summary = GenerateSummary(sentimentResult.Value);
                 
-                // Generate personalized affirmation using Azure OpenAI
+                // Generate personalized affirmation using Azure OpenAI with retry policy
                 string affirmation = await GenerateAffirmationAsync(text, cancellationToken);
 
-                // Check for crisis indicators
+                // Check for crisis indicators with retry policy
                 var (isCrisis, crisisReason) = await DetectCrisisAsync(text, cancellationToken);
 
                 var result = new JournalAnalysisResult
@@ -106,7 +117,10 @@ Journal entry: ""{journalText}""";
 
                 _logger.LogInformation("Generating affirmation for journal entry");
 
-                ClientResult<ChatCompletion> completions = await chatClient.CompleteChatAsync(chatMessages, requestOptions, cancellationToken: cancellationToken);
+                ClientResult<ChatCompletion> completions = await _openAIRetryPipeline.ExecuteAsync(
+                    async token => await chatClient.CompleteChatAsync(chatMessages, requestOptions, cancellationToken: token),
+                    cancellationToken
+                );
 
                 string affirmation = completions.Value.Content[0].Text.Trim();
                 _logger.LogInformation("Generated affirmation successfully");
@@ -161,7 +175,10 @@ Journal entry: ""{journalText}""";
 
                 _logger.LogInformation("Performing crisis detection on journal entry");
 
-                ClientResult<ChatCompletion> completions = await chatClient.CompleteChatAsync(chatMessages, requestOptions, cancellationToken: cancellationToken);
+                ClientResult<ChatCompletion> completions = await _openAIRetryPipeline.ExecuteAsync(
+                    async token => await chatClient.CompleteChatAsync(chatMessages, requestOptions, cancellationToken: token),
+                    cancellationToken
+                );
 
                 string response = completions.Value.Content[0].Text.Trim();
                 

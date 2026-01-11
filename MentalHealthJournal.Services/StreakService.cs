@@ -99,9 +99,22 @@ namespace MentalHealthJournal.Services
         {
             try
             {
+                // Check if we need to recalculate (avoid unnecessary calculations)
+                var user = await _userService.GetUserByIdAsync(userId);
+                if (user != null && user.LastStreakUpdateDate.HasValue)
+                {
+                    var daysSinceUpdate = (DateTime.UtcNow.Date - user.LastStreakUpdateDate.Value).Days;
+                    
+                    // Only recalculate if it's been at least a day since last update
+                    if (daysSinceUpdate == 0)
+                    {
+                        _logger.LogInformation("Streak already calculated today for user {UserId}, skipping recalculation", userId);
+                        return;
+                    }
+                }
+                
                 var (currentStreak, longestStreak) = await CalculateStreaksAsync(userId, cancellationToken);
                 
-                var user = await _userService.GetUserByIdAsync(userId);
                 if (user != null)
                 {
                     user.CurrentStreak = currentStreak;

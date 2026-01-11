@@ -1,21 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useAppInsightsContext } from '@microsoft/applicationinsights-react-js';
 import { useAuth } from './hooks/useAuth';
 import Login from './components/Login';
 import UsernameSetup from './components/UsernameSetup';
 import About from './About';
 import { VoiceRecorder } from './components/VoiceRecorder';
-import { DataExport } from './components/DataExport';
 import { EditEntryModal } from './components/EditEntryModal';
-import { CalendarView } from './components/CalendarView';
-import { StreakCounter } from './components/StreakCounter';
 import CrisisAlert from './components/CrisisAlert';
-import { SentimentTimeline } from './components/SentimentTimeline';
-import { KeyPhrasesCloud } from './components/KeyPhrasesCloud';
-import { TimePatterns } from './components/TimePatterns';
 import { journalService } from './services/journalService';
 import './App.css';
 import './Tabs.css';
+
+// Lazy load heavy components
+const DataExport = lazy(() => import('./components/DataExport').then(module => ({ default: module.DataExport })));
+const CalendarView = lazy(() => import('./components/CalendarView').then(module => ({ default: module.CalendarView })));
+const StreakCounter = lazy(() => import('./components/StreakCounter').then(module => ({ default: module.StreakCounter })));
+const SentimentTimeline = lazy(() => import('./components/SentimentTimeline').then(module => ({ default: module.SentimentTimeline })));
+const KeyPhrasesCloud = lazy(() => import('./components/KeyPhrasesCloud').then(module => ({ default: module.KeyPhrasesCloud })));
+const TimePatterns = lazy(() => import('./components/TimePatterns').then(module => ({ default: module.TimePatterns })));
 
 interface CrisisResource {
     name: string;
@@ -780,17 +782,23 @@ function App() {
                             <div className="insights-grid">
                                 {/* Sentiment Timeline */}
                                 <div className="insight-full-width">
-                                    <SentimentTimeline entries={entries} />
+                                    <Suspense fallback={<div className="loading-placeholder">Loading timeline...</div>}>
+                                        <SentimentTimeline entries={entries} />
+                                    </Suspense>
                                 </div>
 
                                 {/* Key Phrases Cloud */}
                                 <div className="insight-full-width">
-                                    <KeyPhrasesCloud entries={entries} />
+                                    <Suspense fallback={<div className="loading-placeholder">Loading themes...</div>}>
+                                        <KeyPhrasesCloud entries={entries} />
+                                    </Suspense>
                                 </div>
 
                                 {/* Time Patterns */}
                                 <div className="insight-full-width">
-                                    <TimePatterns entries={entries} />
+                                    <Suspense fallback={<div className="loading-placeholder">Loading patterns...</div>}>
+                                        <TimePatterns entries={entries} />
+                                    </Suspense>
                                 </div>
 
                                 {/* Existing Statistics */}
@@ -858,16 +866,20 @@ function App() {
                 {activeTab === 'calendar' && token && (
                     <div className="calendar-tab" role="tabpanel" id="calendar-panel" aria-labelledby="calendar-tab">
                         <h2>📅 Journal Calendar & Streak</h2>
-                        <div className="calendar-streak-container">
-                            <StreakCounter token={token} />
-                            <CalendarView token={token} />
-                        </div>
+                        <Suspense fallback={<div className="loading-placeholder">Loading calendar...</div>}>
+                            <div className="calendar-streak-container">
+                                <StreakCounter token={token} />
+                                <CalendarView token={token} />
+                            </div>
+                        </Suspense>
                     </div>
                 )}
 
                 {activeTab === 'export' && token && (
                     <div className="export-tab">
-                        <DataExport token={token} />
+                        <Suspense fallback={<div className="loading-placeholder">Loading export...</div>}>
+                            <DataExport token={token} />
+                        </Suspense>
                     </div>
                 )}
             </div>
