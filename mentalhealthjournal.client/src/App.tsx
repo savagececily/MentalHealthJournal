@@ -322,6 +322,7 @@ function App() {
                 setEntries([newEntry, ...entries]);
                 setLatestEntry(newEntry);
                 setJournalText('');
+                setAudioBlob(null);
                 // Check for crisis detection
                 if (newEntry.isCrisisDetected && newEntry.crisisResources) {
                     setCrisisData({
