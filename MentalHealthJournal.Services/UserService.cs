@@ -93,7 +93,7 @@ public class UserService : IUserService
             var existingUser = results.FirstOrDefault();
             
             // Username is available if no one has it, or if the current user has it
-            return existingUser == null || existingUser.id == currentUserId;
+            return existingUser == null || existingUser.userId == currentUserId;
         }
         catch (Exception ex)
         {

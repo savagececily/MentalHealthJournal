@@ -233,7 +233,7 @@ public class AuthController : ControllerBase
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, user.id),
+            new Claim(ClaimTypes.NameIdentifier, user.userId), // Use userId (partition key) for consistency
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(ClaimTypes.Name, user.Name),
             new Claim("ProviderId", user.ProviderId),
