@@ -146,5 +146,76 @@ namespace MentalHealthJournal.Tests.Helpers
 
             return results;
         }
+
+        // Chat-related test helpers
+        public static ChatMessage CreateChatMessage(string role, string content)
+        {
+            return new ChatMessage
+            {
+                Role = role,
+                Content = content,
+                Timestamp = DateTime.UtcNow
+            };
+        }
+
+        public static ChatSession CreateChatSession(string? id = null, string userId = "testuser")
+        {
+            return new ChatSession
+            {
+                Id = id ?? Guid.NewGuid().ToString(),
+                UserId = userId,
+                Title = "Test Conversation",
+                Messages = new List<ChatMessage>
+                {
+                    CreateChatMessage("user", "I've been feeling anxious"),
+                    CreateChatMessage("assistant", "I hear you're feeling anxious. Tell me more.")
+                },
+                CreatedAt = DateTime.UtcNow.AddHours(-1),
+                LastMessageAt = DateTime.UtcNow,
+                IsActive = true
+            };
+        }
+
+        public static List<ChatSession> CreateSampleChatSessionList(int count, string userId = "testuser")
+        {
+            var sessions = new List<ChatSession>();
+            for (int i = 0; i < count; i++)
+            {
+                sessions.Add(new ChatSession
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    UserId = userId,
+                    Title = $"Conversation {i + 1}",
+                    Messages = new List<ChatMessage>
+                    {
+                        CreateChatMessage("user", $"User message {i + 1}"),
+                        CreateChatMessage("assistant", $"Assistant response {i + 1}")
+                    },
+                    CreatedAt = DateTime.UtcNow.AddHours(-i),
+                    LastMessageAt = DateTime.UtcNow.AddMinutes(-i * 10),
+                    IsActive = true
+                });
+            }
+            return sessions;
+        }
+
+        public static ChatRequest CreateChatRequest(string message, string? sessionId = null)
+        {
+            return new ChatRequest
+            {
+                Message = message,
+                SessionId = sessionId
+            };
+        }
+
+        public static ChatResponse CreateChatResponse(string sessionId, string message)
+        {
+            return new ChatResponse
+            {
+                SessionId = sessionId,
+                Message = message,
+                Timestamp = DateTime.UtcNow
+            };
+        }
     }
 }

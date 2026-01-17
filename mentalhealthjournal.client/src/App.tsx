@@ -18,6 +18,7 @@ const StreakCounter = lazy(() => import('./components/StreakCounter').then(modul
 const SentimentTimeline = lazy(() => import('./components/SentimentTimeline').then(module => ({ default: module.SentimentTimeline })));
 const KeyPhrasesCloud = lazy(() => import('./components/KeyPhrasesCloud').then(module => ({ default: module.KeyPhrasesCloud })));
 const TimePatterns = lazy(() => import('./components/TimePatterns').then(module => ({ default: module.TimePatterns })));
+const VirtualTherapist = lazy(() => import('./components/VirtualTherapist').then(module => ({ default: module.VirtualTherapist })));
 
 interface CrisisResource {
     name: string;
@@ -66,7 +67,7 @@ function App() {
     const [loadingError, setLoadingError] = useState<string | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [showAbout, setShowAbout] = useState(false);
-    const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights' | 'calendar' | 'export'>('new');
+    const [activeTab, setActiveTab] = useState<'new' | 'past' | 'insights' | 'calendar' | 'export' | 'chat'>('new');
     const [trends, setTrends] = useState<TrendData | null>(null);
     const [latestEntry, setLatestEntry] = useState<JournalEntry | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -515,6 +516,15 @@ function App() {
                     >
                         📦 Export Data
                     </button>
+                    <button 
+                        className={`tab ${activeTab === 'chat' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('chat')}
+                        role="tab"
+                        aria-selected={activeTab === 'chat'}
+                        aria-controls="chat-panel"
+                    >
+                        💬 Virtual Support
+                    </button>
                 </div>
             </div>
 
@@ -851,6 +861,14 @@ function App() {
                     <div className="export-tab">
                         <Suspense fallback={<div className="loading-placeholder">Loading export...</div>}>
                             <DataExport token={token} />
+                        </Suspense>
+                    </div>
+                )}
+
+                {activeTab === 'chat' && token && (
+                    <div className="chat-tab">
+                        <Suspense fallback={<div className="loading-placeholder">Loading chat...</div>}>
+                            <VirtualTherapist />
                         </Suspense>
                     </div>
                 )}

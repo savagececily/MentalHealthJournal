@@ -100,10 +100,10 @@ Keep it concise (1-2 sentences) and speak directly to them using 'you'.
 
 Journal entry: ""{journalText}""";
 
-                List<ChatMessage> chatMessages = new List<ChatMessage>()
+                List<OpenAI.Chat.ChatMessage> chatMessages = new List<OpenAI.Chat.ChatMessage>()
                 {
-                    new SystemChatMessage("You are a compassionate mental health assistant who provides supportive and encouraging affirmations. Your responses should be warm, validating, and help the user feel understood and supported."),
-                    new UserChatMessage(prompt),
+                    OpenAI.Chat.ChatMessage.CreateSystemMessage("You are a compassionate mental health assistant who provides supportive and encouraging affirmations. Your responses should be warm, validating, and help the user feel understood and supported."),
+                    OpenAI.Chat.ChatMessage.CreateUserMessage(prompt),
                 };
 
                 ChatCompletionOptions requestOptions = new ChatCompletionOptions()
@@ -157,10 +157,10 @@ Respond in JSON format:
 
 Journal entry: ""{journalText}""";
 
-                List<ChatMessage> chatMessages = new List<ChatMessage>()
+                List<OpenAI.Chat.ChatMessage> chatMessages = new List<OpenAI.Chat.ChatMessage>()
                 {
-                    new SystemChatMessage("You are a mental health crisis detection system. Your role is to identify immediate safety concerns that require professional intervention. Be sensitive but accurate. Only flag genuine crises, not everyday struggles."),
-                    new UserChatMessage(prompt),
+                    OpenAI.Chat.ChatMessage.CreateSystemMessage("You are a mental health crisis detection system. Your role is to identify immediate safety concerns that require professional intervention. Be sensitive but accurate. Only flag genuine crises, not everyday struggles."),
+                    OpenAI.Chat.ChatMessage.CreateUserMessage(prompt),
                 };
 
                 ChatCompletionOptions requestOptions = new ChatCompletionOptions()
